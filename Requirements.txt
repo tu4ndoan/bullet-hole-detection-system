@@ -1,0 +1,35 @@
+App bao bia bang camera
+
+1. multiple USB cameras connect to computer
+2. python app
+
+Workflow:
+- bấm thêm dải bắn (vd có 10 dải/bệ bắn thì thêm 10 lần)
+- bấm bắt đầu bắn: tạo ra các thư mục, chụp hình ảnh bia an toàn để đối chiếu kết quả
+- hô khẩu lệnh "bắt đầu bắn"
+- đợi bắn xong 1 loạt
+- bấm nút bắn xong 1 loạt để máy tính toán kết quả của loạt này và lưu lại
+- review ket qua, thêm lỗ đạn chưa nhận diện dc hoặc xóa lỗ đạn nhận diện sai
+- đọc kết quả loạt này
+
+- bấm nút bắn loạt tiếp theo
+- hô khẩu lệnh cho loạt tiếp theo bắt đầu bắn
+- đợi bắn xong 1 loạt
+- bấm nút bắn xong 1 loạt để máy tính toán kết quả của loạt này và lưu lại
+- review ket qua, thêm lỗ đạn chưa nhận diện dc hoặc xóa lỗ đạn nhận diện sai
+- đọc kết quả loạt này
+
+- cứ thế đến hết số loạt 
+- sau đó bấm nút xem kết quả và kết thúc bắn
+
+TODO
+- train model = makesense.ai, pytorch, YOLO
+- khi ban xong cho phep nguoi dung review ket qua va add them lo dan neu may tinh khong phat hien duoc lo dan
+- luu lai ket qua da review
+- so sanh ket qua cua loat tiep theo voi ket qua da review maybe masking ?
+- use masking for image processing
+- filter out invalid contours 
+- use hough circles
+- cong thuc elip de xac dinh diem cua tung phat ban 
+
+- bia so 4 co khoang trang, neu lo dan vao khoang trang thi loai bo

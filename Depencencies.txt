@@ -1,0 +1,4 @@
+OpenCV
+Python3
+Pillow
+Tkinter
