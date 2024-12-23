@@ -4,12 +4,12 @@ from PIL import Image, ImageTk
 import numpy as np
 from tkinter import simpledialog
 
-def load_image(lane, turn, target_name):
-    image = cv2.imread(f'./Images/Lane{lane}/{target_name}-{lane}-{turn}.jpg')
+def load_image(lane, turn, target):
+    image = cv2.imread(f'./Images/Lane{lane}/{target}-{lane}-{turn}.jpg')
     return image
 
-def load_result(lane, turn, target_name):
-    result = cv2.imread(f'./Images/Result/Lane{lane}/{target_name}-{lane}-{turn}-marked.jpg')
+def load_result(lane, turn, target):
+    result = cv2.imread(f'./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg')
     return result
 
 def preprocess_images(image_1, image):
@@ -56,9 +56,9 @@ def find_and_draw_contours(image, thresholded_diff, turn):
             draw_number(image, x, y, w, h, turn)
     return image
 
-def draw_number(image, x, y, w, h, turn_num):
+def draw_number(image, x, y, w, h, turn):
     """Draw a number on the image near the detected contour."""
-    number = turn_num  # Example number
+    number = turn  # Example number
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.5
     color = (0, 0, 255)  # Red color for number
@@ -67,12 +67,12 @@ def draw_number(image, x, y, w, h, turn_num):
     posY = y + (4 * h) // 5
     cv2.putText(image, str(number), (posX, posY), font, font_scale, color, thickness)
 
-def compare_images(image_1, image_2, lane, turn, target_name):
+def compare_images(image_1, image_2, lane, turn, target):
     """Compare two images, detect changes, and mark bullet holes."""
     diff_normalized = preprocess_images(image_1, image_2)
     blurred_diff, thresholded_diff = apply_threshold_and_blur(diff_normalized)
     processed_image = find_and_draw_contours(blurred_diff, thresholded_diff, turn)
-    #save_image(processed_image, lane, turn, target_name)
+    #save_image(processed_image, lane, turn, target)
     cv2.imshow(image_2)
     cv2.imshow(image_1)
     cv2.imshow(processed_image)
@@ -159,39 +159,63 @@ def get_target_center(target):
     target_center = get_elipse_target_center(image)
     return target_center
 
+def draw_debug_elipse(image, a, b, h, k):
+    # Parameters for the ellipse
+    center = (h, k)  # center of the ellipse
+    axes = (a, b)  # axes lengths (semi-major and semi-minor axes)
+    angle = 90  # rotation angle in degrees
+    start_angle = 0  # starting angle of the arc
+    end_angle = 360  # ending angle of the arc (full ellipse)
+
+    for i in range(1,10):
+    # Draw the ellipse on the image
+        cv2.ellipse(image, (h,k), (a*i,b*i), angle, start_angle, end_angle, (255, 0, 0), 1)
+        cv2.circle(image, (h,k), 1, (0,0,255), 1)
+
 def calculate_point(lane, turn):
     # get the bullet holes from lane, turn, target
     holes = get_bullet_holes(lane, turn)
-    (h,k) = get_target_center("test")
+    #(h,k) = get_target_center("test")
+    h = 400
+    k = 300
     #for bullet hole in bullet holes
-    a = 7 #vertical of the smallest elipse
-    b = 5 #horizontal of the smallest elipse
+    a = 100 #vertical of the smallest elipse
+    b = 80 #horizontal of the smallest elipse
 
     score = 0
-    for (x, y) in holes:
+    point = 0
+    i = 0
+    for (x, y, r) in holes:
+        i = i + 1
         if is_point_inside_ellipse(x,y,h,k,a,b):
-            score = score + 10
+            point = 10
         elif is_point_inside_ellipse(x,y,h,k,2*a,2*b):
-            score = score + 9
+            point = 9
         elif is_point_inside_ellipse(x,y,h,k,3*a,3*b):
-            score = score + 8
+            point = 8
         elif is_point_inside_ellipse(x,y,h,k,4*a,4*b):
-            score = score + 7
+            point = 7
         elif is_point_inside_ellipse(x,y,h,k,5*a,5*b):
-            score = score + 6
+            point = 6
         elif is_point_inside_ellipse(x,y,h,k,6*a,6*b):
-            score = score + 5
+            point = 5
         elif is_point_inside_ellipse(x,y,h,k,7*a,7*b):
-            score = score + 4
+            point = 4
         elif is_point_inside_ellipse(x,y,h,k,8*a,8*b):
-            score = score + 3
+            point = 3
         elif is_point_inside_ellipse(x,y,h,k,9*a,9*b):
-            score = score + 2
+            point = 2
         elif is_point_inside_ellipse(x,y,h,k,10*a,10*b):
-            score = score + 1
+            point = 1
         else:
+            point = 0
             continue
-    print(f"score: {score}")
+        
+        if turn == 1:
+            point = point -1
+        score = score + point
+        print(f"phat dan thu {i}: {point} diem")
+    print(f"tong so diem: {score} diem")
     # return diem tong
 
 
@@ -204,11 +228,11 @@ def add_text(x,y,text, image):
 
 array = []
 results = []
-def on_image_click(event, canvas, img, text_entries, lane, turn, target_name):
-    image = cv2.imread(f"./Images/Result/Lane{lane}/{target_name}-{lane}-{turn}-marked.jpg")
+def on_image_click(event, canvas, img, text_entries, lane, turn, target):
+    image = cv2.imread(f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg")
     x, y = event.x, event.y
     print(x,y)
-    hole = (x,y)
+    hole = (x,y,1)
     # add pos x y to array
     array.append((x,y))
     for result in results:
@@ -218,13 +242,42 @@ def on_image_click(event, canvas, img, text_entries, lane, turn, target_name):
     for (x,y) in array:
         add_text(x, y, turn, image)
 
-    save_image(image, lane, turn, target_name)
+    #save_image(image, lane, turn, target)
+    calculate_point(lane, turn)
 
-def save_image(image, lane, turn, target_name):
+def save_image(image, lane, turn, target):
     """Save the processed image to disk with dynamic target name."""
-    cv2.imwrite(f"./Images/Result/Lane{lane}/{target_name}-{lane}-{turn}-marked.jpg", image)
+    cv2.imwrite(f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg", image)
 
-def detect_bullet_hole(image, turn_num, lane):
+def is_hole_already_exist(x,y,r):
+    for result in results:
+        for (a,b,c) in result["holes"]:
+            # Coordinates of the two points
+            hole1 = np.array([x, y])
+            hole2 = np.array([a, b])
+
+            # Calculate Euclidean distance
+            distance = np.linalg.norm(hole2 - hole1)
+            if distance < 10:
+                # hole existed
+                print("hole exist")
+                return True
+    return False
+
+def draw_debug(image, x,y,r, turn):
+    top_left = (x - r, y - r)
+    bottom_right = (x + r, y + r)
+    cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 1)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    color = (0, 0, 255)
+    thickness = 2
+    cv2.putText(image, str(turn), (x - 2 * r // 3, y + 2 * r // 3), font, font_scale, color, thickness)
+
+    #cv2.circle(image, (x,y), 1, (0,0,255), 1)
+
+def detect_bullet_hole(image, turn, lane, target):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (15, 15), 0)
     edges = cv2.Canny(blur, threshold1=50, threshold2=150)
@@ -233,51 +286,50 @@ def detect_bullet_hole(image, turn_num, lane):
         edges, 
         cv2.HOUGH_GRADIENT, 
         dp=1, 
-        minDist=20, 
+        minDist=100, 
         param1=50, 
         param2=10, 
-        minRadius=4, 
-        maxRadius=8
+        minRadius=3, 
+        maxRadius=9
     )
 
     if circles is not None:
         circles = np.round(circles[0, :]).astype("int")
         valid_circles = []
         holes = []
+        # luu ket qua
         for circle in circles:
             x, y, r = circle
-            hole = (x,y)
-            valid_circles.append(circle)
-            holes.append(hole)
-            # add the holes detected to 
-        result = {"name": f"{lane}-{turn_num}",
+            hole = (x,y,r)
+            # check xem hole nay co trung voi loat truoc khong
+            if not is_hole_already_exist(x,y,r):
+                valid_circles.append(circle)
+                holes.append(hole)
+
+        result = {"name": f"{lane}-{turn}",
                   "lane": lane,
-                  "turn": turn_num,
+                  "turn": turn,
                   "holes": holes
                   }
         results.append(result)
 
-        for (x, y, r) in valid_circles:
-            top_left = (x - r, y - r)
-            bottom_right = (x + r, y + r)
-            cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 1)
-
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.5
-            color = (0, 0, 255)
-            thickness = 2
-            cv2.putText(image, str(turn_num), (x - 2 * r // 3, y + 2 * r // 3), font, font_scale, color, thickness)
-
-    save_image(image, 1, 1, "test")
-    calculate_point(lane, turn_num)
+        for result in results:
+            print(f"loat {result["turn"]} ban trung : {len(result["holes"])} phat dan")
+            for (x,y,r) in result["holes"]:
+                draw_debug(image, x,y,r,result["turn"])
+            
+        
+    
+    save_image(image, lane, turn, target)
+    calculate_point(lane, turn)
     # Display the image
-    image_path = f"./Images/Result/Lane1/test-1-1-marked.jpg"
+    image_path = f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg"
     img = Image.open(image_path)
     tk_image = ImageTk.PhotoImage(img)
 
     root = tk.Toplevel()
     root.geometry("800x600")
-    canvas = tk.Canvas(root, width=tk_image.width(), height=tk_image.height())
+    canvas = tk.Canvas(root, width=tk_image.width(), height=tk_image.height())    
     canvas.pack()
 
     canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
@@ -286,6 +338,25 @@ def detect_bullet_hole(image, turn_num, lane):
     text_entries = []
 
     # Bind the image click event to allow adding text
-    canvas.bind("<Button-1>", lambda event: on_image_click(event, canvas, tk_image, text_entries, 1, 1, "test"))
+    canvas.bind("<Button-1>", lambda event: on_image_click(event, canvas, tk_image, text_entries, lane, turn, target))
 
     root.mainloop()
+
+
+if __name__ == "__main__":
+    image = cv2.imread("./Images/Lane1/test-1-3.jpg")
+    overlay = cv2.imread("./Images/Lane1/overlay.jpg")
+    #draw_debug_elipse(image, 100,80,400,300)
+    # Apply the drawing (overlay it back onto the original image)
+    # Blend the original image with the drawn image using alpha blending
+    alpha = 0.5  # Transparency factor
+    blended_image = cv2.addWeighted(image, 1 - alpha, overlay, alpha, 0)
+
+
+    cv2.imshow("debug", blended_image)
+    #save_image(blended_image, 1,1, "test")
+    cv2.imwrite("./Images/Lane1/test-1-3.jpg", blended_image)
+
+
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

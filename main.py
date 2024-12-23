@@ -6,7 +6,6 @@ import numpy as np
 import camera_connect
 import os
 import camera
-import add_text
 import testcamera
 import image_processing
 
@@ -24,7 +23,7 @@ num_lane = len(notebook.tabs())
 num_turn = 1
 label = ttk.Frame(notebook)
 
-targets = ["BiaSo4", "BiaSo10", "BiaSo8"] #lets make the user input this
+targets = ["test"] #lets make the user input this
 
 def show_result():
     photo1 = photo2 = photo3 = None
@@ -110,10 +109,10 @@ def review_result(img, lane, turn, target):
     print("review result")
 
 def process_and_save_result(lane, turn, target):
-    #img = image_processing.load_image(lane, turn, target)
-    test_img = cv2.imread("./Images/Lane1/test.jpg")# just for testing
+    img = image_processing.load_image(lane, turn, target)
+    #img = cv2.imread("./Images/Lane1/test-1-2.jpg")# just for testing
     
-    image_processing.detect_bullet_hole(test_img, turn, lane)
+    image_processing.detect_bullet_hole(img, turn, lane, target)
 
 
 def shooting_turn_complete():
@@ -127,7 +126,7 @@ def shooting_turn_complete():
             process_and_save_result(lane+1, num_turn, target)
                 
     #show_result()
-    messagebox.showinfo("Thông báo", "Xem kết quả bắn tại thư mục Result")
+    #messagebox.showinfo("Thông báo", "Xem kết quả bắn tại thư mục Result")
 
 def reset():
     """
