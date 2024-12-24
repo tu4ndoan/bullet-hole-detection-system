@@ -23,13 +23,21 @@ Workflow:
 - sau đó bấm nút xem kết quả và kết thúc bắn
 
 TODO
-- train model = makesense.ai, pytorch, YOLO
-- khi ban xong cho phep nguoi dung review ket qua va add them lo dan neu may tinh khong phat hien duoc lo dan
-- luu lai ket qua da review
-- so sanh ket qua cua loat tiep theo voi ket qua da review maybe masking ?
-- use masking for image processing
-- filter out invalid contours 
+- khi ban xong cho phep nguoi dung review ket qua va add them lo dan neu may tinh khong phat hien duoc lo dan (done)
+- luu lai ket qua da review (done)
+- so sanh ket qua cua loat tiep theo voi ket qua da review? (neu bi xe dich, accept nhung sai sot nho)
+- filter out invalid contours (filter bang radius)
 - use hough circles
 - cong thuc elip de xac dinh diem cua tung phat ban 
 
 - bia so 4 co khoang trang, neu lo dan vao khoang trang thi loai bo
+
+KHÓ KHĂN:
+- toi uu nhận diện hình ảnh lỗ đạn: hiện tại đã nhận biết được lỗ đạn, đã thử với trường hợp bia bị xê dịch, cần tối ưu hơn để nhận diện lỗ đạn chính xác
+- xác định tâm bia (hiện tại xác định tâm bia bằng tay)
+- xác định a và b thực tế của bia elip
+- tạo lỗ đạn trên bia
+- dây nối camera dài ra 
+- camera khởi động quá lâu (done, reason: unsupported resolution and use cap_dshow for faster init)
+- parralel capture for cameras
+- viet form de add camera

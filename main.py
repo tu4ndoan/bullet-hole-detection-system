@@ -1,12 +1,9 @@
 import tkinter as tk
-from tkinter import messagebox, ttk, simpledialog
+from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
-import cv2
 import numpy as np
-import camera_connect
 import os
 import camera
-import testcamera
 import image_processing
 
 # Local Variable
@@ -80,7 +77,8 @@ def start_shooting():
         if not os.path.exists(result_dir):
             os.makedirs(result_dir)
     # chụp tất cả các bia trước khi bắn để so sánh
-    camera_connect.parallel_capture()
+    # call parallel capture
+    camera.parallel_capture(camera.cameras, num_turn)
     messagebox.showinfo("Thông báo", "Bắt đầu bắn")
 
 
@@ -120,13 +118,12 @@ def shooting_turn_complete():
     Complete the current shooting turn and capture an image.
     """
     global num_turn, num_lane
+    # call parallel capture again
+    camera.parallel_capture(camera.cameras, num_turn)
     for lane in range(num_lane):
         print(f"loat thu {num_turn}, dai ban {lane+1}")
         for target in targets:
             process_and_save_result(lane+1, num_turn, target)
-                
-    #show_result()
-    #messagebox.showinfo("Thông báo", "Xem kết quả bắn tại thư mục Result")
 
 def reset():
     """
@@ -144,7 +141,7 @@ def get_current_tab():
     return notebook.nametowidget(current_tab_id)
 
 def capture_images():
-    camera_connect.parallel_capture()
+#   parralel capture
     messagebox.showinfo("Thông báo", "Đã chụp/lưu ảnh tại thư mục Images/")
 
 def on_submit(param1, param2, param3, window):
@@ -153,16 +150,9 @@ def on_submit(param1, param2, param3, window):
         add_camera(param1, param2, param3)
 
     window.destroy()
-
-def display_camera(camera_id):
-    newwin = tk.Toplevel(root)
-    newwin.title("new window")
-    newwin.geometry("800x600")
-    cam_indices = [0]
-    cam = camera.CameraApp(newwin, newwin, cam_indices)
     
 def add_camera(lane, target, camera_id):
-    testcamera.add_camera(lane, target, camera_id, get_current_tab(), root)
+    print("added 1 camera")
 
 def add_camera_form():
     new_window = tk.Toplevel(root)
