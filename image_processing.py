@@ -2,7 +2,7 @@ import cv2
 import tkinter as tk
 from PIL import Image, ImageTk
 import numpy as np
-from tkinter import simpledialog
+from tkinter import messagebox
 
 def load_image(lane, turn, target):
     image = cv2.imread(f'./Images/Lane{lane}/{target}-{lane}-{turn}.jpg')
@@ -12,75 +12,29 @@ def load_result(lane, turn, target):
     result = cv2.imread(f'./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg')
     return result
 
-def preprocess_images(image_1, image):
-    """Convert images to grayscale and compute absolute difference."""
-    gray_original = cv2.cvtColor(image_1, cv2.COLOR_BGR2GRAY)
-    gray_modified = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    difference = cv2.absdiff(gray_original, gray_modified)
-    diff_normalized = cv2.normalize(difference, None, 0, 255, cv2.NORM_MINMAX)
-    return diff_normalized
+def otsu_thresholding(gray):
+    # Apply adaptive thresholding
+    # Apply Otsu's thresholding
+    return cv2.threshold(
+        gray, 
+        0, 
+        255, 
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
 
-def apply_threshold_and_blur(diff_normalized):
-    """Threshold and apply Gaussian blur to highlight changes."""
-    scaled_diff = diff_normalized // 2  # Reduce sensitivity
-    _, thresholded_diff = cv2.threshold(scaled_diff, 50, 255, cv2.THRESH_BINARY)
-    blurred_diff = cv2.GaussianBlur(thresholded_diff, (5, 5), 0)
-    return blurred_diff, thresholded_diff
+def adaptive_thresholding(gray):
+    # Apply adaptive thresholding
+    return (1.0, cv2.adaptiveThreshold(
+        gray, 
+        255, 
+        cv2.ADAPTIVE_THRESH_MEAN_C, 
+        cv2.THRESH_BINARY, 
+        11,  # Block size (local region size)
+        2    # Constant subtracted from mean or weighted mean
+    ))
 
-def find_and_draw_contours(image, thresholded_diff, turn):
-    """Find contours and draw bounding boxes for significant changes."""
-    contours, _ = cv2.findContours(thresholded_diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    valid_contours = []
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area < 15 or area > 100:
-            continue
-        perimeter = cv2.arcLength(contour, True)
-        if perimeter < 10:
-            continue
-        x, y, w, h = cv2.boundingRect(contour)
-        aspect_ratio = w / float(h)
-        if aspect_ratio < 0.5 or aspect_ratio > 2.0:
-           continue
-        perimeter = cv2.arcLength(contour, True)
-        area = cv2.contourArea(contour)
-        circularity = (4 * np.pi * area) / (perimeter ** 2)
-        if circularity < 0.5:
-            continue  # Not a valid circle
-        valid_contours.append(contour)
-
-    for contour in valid_contours:
-        if cv2.contourArea(contour) > 1:  # Minimum area threshold
-            x, y, w, h = cv2.boundingRect(contour)
-            cv2.rectangle(image, (x, y), (x+w, y+h), (0, 0, 255), 1)  # Green rectangle
-            draw_number(image, x, y, w, h, turn)
-    return image
-
-def draw_number(image, x, y, w, h, turn):
-    """Draw a number on the image near the detected contour."""
-    number = turn  # Example number
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.5
-    color = (0, 0, 255)  # Red color for number
-    thickness = 2
-    posX = x + w // 4
-    posY = y + (4 * h) // 5
-    cv2.putText(image, str(number), (posX, posY), font, font_scale, color, thickness)
-
-def compare_images(image_1, image_2, lane, turn, target):
-    """Compare two images, detect changes, and mark bullet holes."""
-    diff_normalized = preprocess_images(image_1, image_2)
-    blurred_diff, thresholded_diff = apply_threshold_and_blur(diff_normalized)
-    processed_image = find_and_draw_contours(blurred_diff, thresholded_diff, turn)
-    #save_image(processed_image, lane, turn, target)
-    cv2.imshow(image_2)
-    cv2.imshow(image_1)
-    cv2.imshow(processed_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-def is_point_inside_ellipse(x, y, h, k, a, b):
-    """Check if a point (x, y) is inside an ellipse with center (h, k),
+def is_score_inside_ellipse(x, y, h, k, a, b):
+    """Check if a score (x, y) is inside an ellipse with center (h, k),
     semi-major axis a, and semi-minor axis b."""
     
     # Apply the ellipse equation
@@ -88,7 +42,7 @@ def is_point_inside_ellipse(x, y, h, k, a, b):
     # h,k: tam bia
     # a: canh doc
     # b: canh ngang
-    # If the result is less than or equal to 1, the point is inside or on the ellipse
+    # If the result is less than or equal to 1, the score is inside or on the ellipse
     return equation_result <= 1
 
 def get_bullet_holes(lane, turn):
@@ -136,7 +90,7 @@ def get_elipse_target_center(image):
 
     # Iterate over the contours and fit ellipses
     for contour in contours:
-        if len(contour) >= 5:  # Fit an ellipse requires at least 5 points
+        if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
             # Fit an ellipse to the contour
             ellipse = cv2.fitEllipse(contour)
 
@@ -172,7 +126,7 @@ def draw_debug_elipse(image, a, b, h, k):
         cv2.ellipse(image, (h,k), (a*i,b*i), angle, start_angle, end_angle, (255, 0, 0), 1)
         cv2.circle(image, (h,k), 1, (0,0,255), 1)
 
-def calculate_point(lane, turn):
+def calculate_score(lane, turn):
     # get the bullet holes from lane, turn, target
     holes = get_bullet_holes(lane, turn)
     #(h,k) = get_target_center("test")
@@ -182,40 +136,48 @@ def calculate_point(lane, turn):
     a = 100 #vertical of the smallest elipse
     b = 80 #horizontal of the smallest elipse
 
+    total_score = 0
     score = 0
-    point = 0
+    scores = []
     i = 0
+    message = f"Loạt {turn}, bệ số {lane}:"
     for (x, y, r) in holes:
         i = i + 1
-        if is_point_inside_ellipse(x,y,h,k,a,b):
-            point = 10
-        elif is_point_inside_ellipse(x,y,h,k,2*a,2*b):
-            point = 9
-        elif is_point_inside_ellipse(x,y,h,k,3*a,3*b):
-            point = 8
-        elif is_point_inside_ellipse(x,y,h,k,4*a,4*b):
-            point = 7
-        elif is_point_inside_ellipse(x,y,h,k,5*a,5*b):
-            point = 6
-        elif is_point_inside_ellipse(x,y,h,k,6*a,6*b):
-            point = 5
-        elif is_point_inside_ellipse(x,y,h,k,7*a,7*b):
-            point = 4
-        elif is_point_inside_ellipse(x,y,h,k,8*a,8*b):
-            point = 3
-        elif is_point_inside_ellipse(x,y,h,k,9*a,9*b):
-            point = 2
-        elif is_point_inside_ellipse(x,y,h,k,10*a,10*b):
-            point = 1
+        if is_score_inside_ellipse(x,y,h,k,a,b):
+            score = 10
+        elif is_score_inside_ellipse(x,y,h,k,2*a,2*b):
+            score = 9
+        elif is_score_inside_ellipse(x,y,h,k,3*a,3*b):
+            score = 8
+        elif is_score_inside_ellipse(x,y,h,k,4*a,4*b):
+            score = 7
+        elif is_score_inside_ellipse(x,y,h,k,5*a,5*b):
+            score = 6
+        elif is_score_inside_ellipse(x,y,h,k,6*a,6*b):
+            score = 5
+        elif is_score_inside_ellipse(x,y,h,k,7*a,7*b):
+            score = 4
+        elif is_score_inside_ellipse(x,y,h,k,8*a,8*b):
+            score = 3
+        elif is_score_inside_ellipse(x,y,h,k,9*a,9*b):
+            score = 2
+        elif is_score_inside_ellipse(x,y,h,k,10*a,10*b):
+            score = 1
         else:
-            point = 0
+            score = 0
             continue
         
         if turn == 1:
-            point = point -1
-        score = score + point
-        print(f"phat dan thu {i}: {point} diem")
-    print(f"tong so diem: {score} diem")
+            score = score -1
+        result = f"\n Phát {i}: {score} điểm"
+        message = message + result
+        total_score = total_score + score
+        scores.append(score)
+        print(f"phat dan thu {i}: {score} diem")
+    print(f"tong so diem: {total_score} diem")
+    
+    message = message + f"\n Tổng: {total_score} điểm"
+    messagebox.showinfo("Báo bia", message)
     # return diem tong
 
 
@@ -243,7 +205,7 @@ def on_image_click(event, canvas, img, text_entries, lane, turn, target):
         add_text(x, y, turn, image)
 
     #save_image(image, lane, turn, target)
-    calculate_point(lane, turn)
+    calculate_score(lane, turn)
 
 def save_image(image, lane, turn, target):
     """Save the processed image to disk with dynamic target name."""
@@ -252,7 +214,7 @@ def save_image(image, lane, turn, target):
 def is_hole_already_exist(x,y,r):
     for result in results:
         for (a,b,c) in result["holes"]:
-            # Coordinates of the two points
+            # Coordinates of the two scores
             hole1 = np.array([x, y])
             hole2 = np.array([a, b])
 
@@ -275,13 +237,20 @@ def draw_debug(image, x,y,r, turn):
     thickness = 2
     cv2.putText(image, str(turn), (x - 2 * r // 3, y + 2 * r // 3), font, font_scale, color, thickness)
 
-    #cv2.circle(image, (x,y), 1, (0,0,255), 1)
+def circularity_check(x, y, r):
+    area = np.pi*r**2
+    perimeter = 2*np.pi*r
+
+    if perimeter > 0:  # Avoid division by zero
+        circularity = (4 * np.pi * area) / (perimeter ** 2)
+        return circularity
 
 def detect_bullet_hole(image, turn, lane, target):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (15, 15), 0)
-    edges = cv2.Canny(blur, threshold1=50, threshold2=150)
-
+    gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+    #_, thresh = adaptive_thresholding(gray_blurred)
+    edges = cv2.Canny(gray_blurred, threshold1=50, threshold2=150)
+    
     circles = cv2.HoughCircles(
         edges, 
         cv2.HOUGH_GRADIENT, 
@@ -301,6 +270,8 @@ def detect_bullet_hole(image, turn, lane, target):
         for circle in circles:
             x, y, r = circle
             hole = (x,y,r)
+            print(circularity_check(x,y,r))
+
             # check xem hole nay co trung voi loat truoc khong
             if not is_hole_already_exist(x,y,r):
                 valid_circles.append(circle)
@@ -321,19 +292,19 @@ def detect_bullet_hole(image, turn, lane, target):
         
     
     save_image(image, lane, turn, target)
-    calculate_point(lane, turn)
     # Display the image
     image_path = f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg"
     img = Image.open(image_path)
     tk_image = ImageTk.PhotoImage(img)
 
     root = tk.Toplevel()
-    root.geometry("800x600")
+    root.geometry("1920x1080")
     canvas = tk.Canvas(root, width=tk_image.width(), height=tk_image.height())    
     canvas.pack()
 
     canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
     canvas.image = tk_image  # Keep a reference to avoid garbage collection
+    calculate_score(lane, turn)
 
     text_entries = []
 
