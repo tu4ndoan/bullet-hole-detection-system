@@ -243,7 +243,7 @@ def circularity_check(x, y, r):
 
     if perimeter > 0:  # Avoid division by zero
         circularity = (4 * np.pi * area) / (perimeter ** 2)
-        return circularity
+        return circularity == 1.0
 
 def detect_bullet_hole(image, turn, lane, target):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -257,7 +257,7 @@ def detect_bullet_hole(image, turn, lane, target):
         dp=1, 
         minDist=100, 
         param1=50, 
-        param2=10, 
+        param2=15, 
         minRadius=3, 
         maxRadius=9
     )
@@ -270,7 +270,7 @@ def detect_bullet_hole(image, turn, lane, target):
         for circle in circles:
             x, y, r = circle
             hole = (x,y,r)
-            print(circularity_check(x,y,r))
+            print(r)
 
             # check xem hole nay co trung voi loat truoc khong
             if not is_hole_already_exist(x,y,r):
@@ -290,44 +290,156 @@ def detect_bullet_hole(image, turn, lane, target):
                 draw_debug(image, x,y,r,result["turn"])
             
         
-    
-    save_image(image, lane, turn, target)
-    # Display the image
-    image_path = f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg"
-    img = Image.open(image_path)
-    tk_image = ImageTk.PhotoImage(img)
+    if not __name__ == "__main__":
+        save_image(image, lane, turn, target)
+        # Display the image
+        image_path = f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg"
+        img = Image.open(image_path)
+        tk_image = ImageTk.PhotoImage(img)
 
-    root = tk.Toplevel()
-    root.geometry("1920x1080")
-    canvas = tk.Canvas(root, width=tk_image.width(), height=tk_image.height())    
-    canvas.pack()
+        root = tk.Toplevel()
+        root.geometry("1920x1080")
+        canvas = tk.Canvas(root, width=tk_image.width(), height=tk_image.height())    
+        canvas.pack()
 
-    canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
-    canvas.image = tk_image  # Keep a reference to avoid garbage collection
-    calculate_score(lane, turn)
+        canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
+        canvas.image = tk_image  # Keep a reference to avoid garbage collection
+        calculate_score(lane, turn)
 
-    text_entries = []
+        text_entries = []
 
-    # Bind the image click event to allow adding text
-    canvas.bind("<Button-1>", lambda event: on_image_click(event, canvas, tk_image, text_entries, lane, turn, target))
+        # Bind the image click event to allow adding text
+        canvas.bind("<Button-1>", lambda event: on_image_click(event, canvas, tk_image, text_entries, lane, turn, target))
 
-    root.mainloop()
+        root.mainloop()
 
 
 if __name__ == "__main__":
-    image = cv2.imread("./Images/Lane1/test-1-3.jpg")
-    overlay = cv2.imread("./Images/Lane1/overlay.jpg")
+    """cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+
+    ret, frame = cap.read()
+    image = cv2.imread("./Images/Lane1/BiaSo8-1-1.jpg")
+    if ret:
+        image = frame
+        cv2.imwrite("./Images/Lane1/test22.jpg", image)"""
+    # Open the video capture
+    cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+
+    # Wait for the webcam to initialize
+    while not cap.isOpened():
+        print("Waiting for the webcam to initialize...")
+        cv2.waitKey(100)  # Wait for 100 ms before checking again
+
+    print("Webcam initialized successfully!")
+    # Set resolution to 1080p
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
+    # Verify if the resolution is set correctly
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    print(f"Resolution: {width}x{height}")
+    # Capture a frame
+    cv2.waitKey(100)
+    ret, frame = cap.read()
+
+    if not ret:
+        print("Error: Failed to capture frame")
+    else:
+        # Check if the frame is empty (black)
+        if frame is None or frame.size == 0:
+            print("Error: Captured frame is empty")
+        else:
+            # Save the frame as an image
+            cv2.imwrite('captured_frame.jpg', frame)
+            print("Frame saved successfully")
+
+    # Capture video frames
+    while True:
+        ret, frame = cap.read()
+
+        if not ret:
+            print("Error: Failed to capture frame")
+            break
+        
+        #detect bullet hole
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+        #_, thresh = adaptive_thresholding(gray_blurred)
+        #_, otsu_thresh = otsu_thresholding(gray_blurred)
+        edges = cv2.Canny(gray_blurred, threshold1=50, threshold2=150)
+        
+        circles = cv2.HoughCircles(
+            edges, 
+            cv2.HOUGH_GRADIENT, 
+            dp=1, 
+            minDist=100, 
+            param1=150, 
+            param2=15, 
+            minRadius=6, 
+            maxRadius=10
+        )
+
+        if circles is not None:
+            circles = np.round(circles[0, :]).astype("int")
+            valid_circles = []
+            holes = []
+            # luu ket qua
+            for circle in circles:
+                x, y, r = circle
+                hole = (x,y,r)
+                print(x, y, r)
+                print(circularity_check(x,y,r))
+                # check xem hole nay co trung voi loat truoc khong
+                if not is_hole_already_exist(x,y,r):
+                    valid_circles.append(circle)
+                    holes.append(hole)
+
+            result = {"name": f"{1}-{1}",
+                    "lane": 1,
+                    "turn": 1,
+                    "holes": holes
+                    }
+            results.append(result)
+
+            for result in results:
+                #print(f"loat {result["turn"]} ban trung : {len(result["holes"])} phat dan")
+                for (x,y,r) in result["holes"]:
+                    draw_debug(frame, x,y,r,result["turn"])
+
+        # Display the frame
+        cv2.imshow('Video Frame', frame)
+
+        # Break the loop when the user presses 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Release the video capture and close windows
+    cap.release()
+    cv2.destroyAllWindows()
+    
+    
+    #overlay = cv2.imread("./Images/Lane1/overlay.jpg")
     #draw_debug_elipse(image, 100,80,400,300)
     # Apply the drawing (overlay it back onto the original image)
     # Blend the original image with the drawn image using alpha blending
-    alpha = 0.5  # Transparency factor
-    blended_image = cv2.addWeighted(image, 1 - alpha, overlay, alpha, 0)
+    #alpha = 0.5  # Transparency factor
+    #blended_image = cv2.addWeighted(image, 1 - alpha, overlay, alpha, 0)
 
 
-    cv2.imshow("debug", blended_image)
+    #cv2.imshow("debug", blended_image)
     #save_image(blended_image, 1,1, "test")
-    cv2.imwrite("./Images/Lane1/test-1-3.jpg", blended_image)
+    #cv2.imwrite("./Images/Lane1/test-1-3.jpg", blended_image)
 
 
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+    cv2.imshow("res",image)
+    #cv2.imshow("gray_blur", gray_blurred)
+    #cv2.imshow("thresh", thresh)
+    cv2.imshow("edges", edges)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

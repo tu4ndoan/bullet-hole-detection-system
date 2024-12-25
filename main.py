@@ -20,7 +20,7 @@ num_lane = len(notebook.tabs())
 num_turn = 1
 label = ttk.Frame(notebook)
 
-targets = ["test"] #lets make the user input this
+targets = ["BiaSo8"] #lets make the user input this
 
 def show_result():
     photo1 = photo2 = photo3 = None

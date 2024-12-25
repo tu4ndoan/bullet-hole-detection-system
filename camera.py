@@ -1,7 +1,7 @@
 import cv2
 import threading
 
-cameras = []
+
 # khi gan camera vao may tinh, cho phep user init camera va add vao array cameras
 class Camera:
     def __init__(self, lane=None, target=None, camera_id = 0):
@@ -70,6 +70,10 @@ def parallel_capture(cameras, turn):
         t.join()
 
     cv2.destroyAllWindows()
+
+cameras = []
+camera_1 = Camera(lane=1, target="BiaSo8", camera_id=1)
+cameras.append(camera_1)
 
 # Example usage:
 if __name__ == "__main__":
