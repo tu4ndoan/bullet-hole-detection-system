@@ -2,7 +2,13 @@ import cv2
 import tkinter as tk
 from PIL import Image, ImageTk
 import numpy as np
+import camera
 from tkinter import messagebox
+import object_detection
+
+
+# tham so
+
 
 def load_image(lane, turn, target):
     image = cv2.imread(f'./Images/Lane{lane}/{target}-{lane}-{turn}.jpg')
@@ -13,7 +19,6 @@ def load_result(lane, turn, target):
     return result
 
 def otsu_thresholding(gray):
-    # Apply adaptive thresholding
     # Apply Otsu's thresholding
     return cv2.threshold(
         gray, 
@@ -30,7 +35,7 @@ def adaptive_thresholding(gray):
         cv2.ADAPTIVE_THRESH_MEAN_C, 
         cv2.THRESH_BINARY, 
         11,  # Block size (local region size)
-        2    # Constant subtracted from mean or weighted mean
+        5    # Constant subtracted from mean or weighted mean
     ))
 
 def is_score_inside_ellipse(x, y, h, k, a, b):
@@ -121,7 +126,7 @@ def draw_debug_elipse(image, a, b, h, k):
     start_angle = 0  # starting angle of the arc
     end_angle = 360  # ending angle of the arc (full ellipse)
 
-    for i in range(1,10):
+    for i in range(1,11):
     # Draw the ellipse on the image
         cv2.ellipse(image, (h,k), (a*i,b*i), angle, start_angle, end_angle, (255, 0, 0), 1)
         cv2.circle(image, (h,k), 1, (0,0,255), 1)
@@ -130,8 +135,8 @@ def calculate_score(lane, turn):
     # get the bullet holes from lane, turn, target
     holes = get_bullet_holes(lane, turn)
     #(h,k) = get_target_center("test")
-    h = 400
-    k = 300
+    h = 958
+    k = 750
     #for bullet hole in bullet holes
     a = 100 #vertical of the smallest elipse
     b = 80 #horizontal of the smallest elipse
@@ -167,8 +172,8 @@ def calculate_score(lane, turn):
             score = 0
             continue
         
-        if turn == 1:
-            score = score -1
+        #if turn == 1:
+        #    score = score -1
         result = f"\n Phát {i}: {score} điểm"
         message = message + result
         total_score = total_score + score
@@ -211,26 +216,29 @@ def save_image(image, lane, turn, target):
     """Save the processed image to disk with dynamic target name."""
     cv2.imwrite(f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg", image)
 
-def is_hole_already_exist(x,y,r):
+def is_hole_already_exist(x, y, r):
     for result in results:
-        for (a,b,c) in result["holes"]:
+        for i, hole in enumerate(result["holes"]):  # Use enumerate to get the index
+            (a, b, c) = hole
             # Coordinates of the two scores
             hole1 = np.array([x, y])
             hole2 = np.array([a, b])
 
             # Calculate Euclidean distance
             distance = np.linalg.norm(hole2 - hole1)
-            if distance < 10:
-                # hole existed
-                print("hole exist")
+            if distance < 20:
+                # Hole exists, update the hole
+                print("Hole exists, updating the hole value.")
+                result["holes"][i] = (x, y, r)  # Update the hole at index i
                 return True
     return False
 
 def draw_debug(image, x,y,r, turn):
+    #draw bounding box
     top_left = (x - r, y - r)
     bottom_right = (x + r, y + r)
     cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 1)
-
+    # draw turn number
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.5
     color = (0, 0, 255)
@@ -243,23 +251,24 @@ def circularity_check(x, y, r):
 
     if perimeter > 0:  # Avoid division by zero
         circularity = (4 * np.pi * area) / (perimeter ** 2)
-        return circularity == 1.0
+        
+        return circularity
 
-def detect_bullet_hole(image, turn, lane, target):
+def detect_bullet_hole(image, turn, lane, target, gray_blurred_1, gray_blurred_2, edge_thresh_1, edge_thresh_2,  min_dist, param1, param2, min_rad, max_rad):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+    gray_blurred = cv2.GaussianBlur(gray, (gray_blurred_1, gray_blurred_2), 0)
     #_, thresh = adaptive_thresholding(gray_blurred)
-    edges = cv2.Canny(gray_blurred, threshold1=50, threshold2=150)
+    edges = cv2.Canny(gray_blurred, threshold1=edge_thresh_1, threshold2=edge_thresh_2)
     
     circles = cv2.HoughCircles(
         edges, 
         cv2.HOUGH_GRADIENT, 
         dp=1, 
-        minDist=100, 
-        param1=50, 
-        param2=15, 
-        minRadius=3, 
-        maxRadius=9
+        minDist=min_dist, 
+        param1=param1, 
+        param2=param2, 
+        minRadius=min_rad, 
+        maxRadius=max_rad
     )
 
     if circles is not None:
@@ -271,7 +280,7 @@ def detect_bullet_hole(image, turn, lane, target):
             x, y, r = circle
             hole = (x,y,r)
             print(r)
-
+            print(circularity_check(x,y,r))
             # check xem hole nay co trung voi loat truoc khong
             if not is_hole_already_exist(x,y,r):
                 valid_circles.append(circle)
@@ -283,14 +292,21 @@ def detect_bullet_hole(image, turn, lane, target):
                   "holes": holes
                   }
         results.append(result)
-
+        
         for result in results:
             print(f"loat {result["turn"]} ban trung : {len(result["holes"])} phat dan")
             for (x,y,r) in result["holes"]:
                 draw_debug(image, x,y,r,result["turn"])
             
-        
-    if not __name__ == "__main__":
+    draw_debug_elipse(image, 100, 80, 958, 750)
+    cv2.imshow('Video Frame', image)
+    cv2.imshow("edge", edges)
+    calculate_score(lane, turn)
+    save_image(image, lane, turn, target)  
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    """if not __name__ == "__main__":
         save_image(image, lane, turn, target)
         # Display the image
         image_path = f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg"
@@ -304,6 +320,7 @@ def detect_bullet_hole(image, turn, lane, target):
 
         canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
         canvas.image = tk_image  # Keep a reference to avoid garbage collection
+        draw_debug_elipse(image, 70, 50, 958, 411)
         calculate_score(lane, turn)
 
         text_entries = []
@@ -311,135 +328,92 @@ def detect_bullet_hole(image, turn, lane, target):
         # Bind the image click event to allow adding text
         canvas.bind("<Button-1>", lambda event: on_image_click(event, canvas, tk_image, text_entries, lane, turn, target))
 
-        root.mainloop()
+        root.mainloop()"""
 
-
+def nothing(x):
+    pass
 if __name__ == "__main__":
-    """cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+    cam = camera.Camera(1,"BiaTest", 1)
+    img = cam.capture_image(1)
+    cropped_target, target_masked, target_mask = object_detection.detect_target(img)
+    zoomed = object_detection.zoom_in(cropped_target, 1)
+    #detect_bullet_hole(img, 1,1,"BiaTest", 15,15,50,150,100,150,14, 5,15)
+    #detect bullet hole
+    gray = cv2.cvtColor(zoomed, cv2.COLOR_BGR2GRAY)
+    gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+    _, thresh = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY)
+    edges = cv2.Canny(gray_blurred, threshold1=150, threshold2=150)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    ret, frame = cap.read()
-    image = cv2.imread("./Images/Lane1/BiaSo8-1-1.jpg")
-    if ret:
-        image = frame
-        cv2.imwrite("./Images/Lane1/test22.jpg", image)"""
-    # Open the video capture
-    cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
-
-    # Wait for the webcam to initialize
-    while not cap.isOpened():
-        print("Waiting for the webcam to initialize...")
-        cv2.waitKey(100)  # Wait for 100 ms before checking again
-
-    print("Webcam initialized successfully!")
-    # Set resolution to 1080p
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-
-    # Verify if the resolution is set correctly
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    print(f"Resolution: {width}x{height}")
-    # Capture a frame
-    cv2.waitKey(100)
-    ret, frame = cap.read()
-
-    if not ret:
-        print("Error: Failed to capture frame")
-    else:
-        # Check if the frame is empty (black)
-        if frame is None or frame.size == 0:
-            print("Error: Captured frame is empty")
-        else:
-            # Save the frame as an image
-            cv2.imwrite('captured_frame.jpg', frame)
-            print("Frame saved successfully")
-
-    # Capture video frames
-    while True:
-        ret, frame = cap.read()
-
-        if not ret:
-            print("Error: Failed to capture frame")
-            break
+    # Step 5: Detect bullet holes (circles/ellipses)
+    """detected_bullet_holes = []
+    for contour in contours:
+        if 1<cv2.contourArea(contour) <10:  # Filter out small contours
+            # Step 6: Fit ellipse to contour (handles perspective distortion)
+            if len(contour) >= 5:  # At least 5 points required to fit an ellipse
+                ellipse = cv2.fitEllipse(contour)
+                detected_bullet_holes.append(ellipse)
+            else:
+                print("not elipse")
+    for ellipse in detected_bullet_holes:
+        center, axes, angle = ellipse
         
-        #detect bullet hole
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
-        #_, thresh = adaptive_thresholding(gray_blurred)
-        #_, otsu_thresh = otsu_thresholding(gray_blurred)
-        edges = cv2.Canny(gray_blurred, threshold1=50, threshold2=150)
+        # Ensure center is a tuple of integers
+        center = tuple(map(int, center))
         
-        circles = cv2.HoughCircles(
-            edges, 
-            cv2.HOUGH_GRADIENT, 
-            dp=1, 
-            minDist=100, 
-            param1=150, 
-            param2=15, 
-            minRadius=6, 
-            maxRadius=10
-        )
-
-        if circles is not None:
-            circles = np.round(circles[0, :]).astype("int")
-            valid_circles = []
-            holes = []
-            # luu ket qua
-            for circle in circles:
-                x, y, r = circle
-                hole = (x,y,r)
-                print(x, y, r)
-                print(circularity_check(x,y,r))
-                # check xem hole nay co trung voi loat truoc khong
-                if not is_hole_already_exist(x,y,r):
-                    valid_circles.append(circle)
-                    holes.append(hole)
-
-            result = {"name": f"{1}-{1}",
-                    "lane": 1,
-                    "turn": 1,
-                    "holes": holes
-                    }
-            results.append(result)
-
-            for result in results:
-                #print(f"loat {result["turn"]} ban trung : {len(result["holes"])} phat dan")
-                for (x,y,r) in result["holes"]:
-                    draw_debug(frame, x,y,r,result["turn"])
-
-        # Display the frame
-        cv2.imshow('Video Frame', frame)
-
-        # Break the loop when the user presses 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    # Release the video capture and close windows
-    cap.release()
-    cv2.destroyAllWindows()
-    
-    
-    #overlay = cv2.imread("./Images/Lane1/overlay.jpg")
-    #draw_debug_elipse(image, 100,80,400,300)
-    # Apply the drawing (overlay it back onto the original image)
-    # Blend the original image with the drawn image using alpha blending
-    #alpha = 0.5  # Transparency factor
-    #blended_image = cv2.addWeighted(image, 1 - alpha, overlay, alpha, 0)
-
-
-    #cv2.imshow("debug", blended_image)
-    #save_image(blended_image, 1,1, "test")
-    #cv2.imwrite("./Images/Lane1/test-1-3.jpg", blended_image)
-
-
-    #cv2.waitKey(0)
-    #cv2.destroyAllWindows()
-    cv2.imshow("res",image)
-    #cv2.imshow("gray_blur", gray_blurred)
-    #cv2.imshow("thresh", thresh)
-    cv2.imshow("edges", edges)
+        # Convert axes to integers (semi-major and semi-minor axes)
+        axes = tuple(map(int, axes))
+        
+        color = (0, 255, 0)  # Green color
+        thickness = 2
+        
+        # Draw the ellipse
+        cv2.ellipse(img, center, axes, angle, 0, 360, color, thickness)
+    cv2.imshow("img",img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    """
+    circles = cv2.HoughCircles(
+        edges, 
+        cv2.HOUGH_GRADIENT, 
+        dp=1, 
+        minDist=100, 
+        param1=150, 
+        param2=6, 
+        minRadius=1, 
+        maxRadius=20
+    )
+
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+        valid_circles = []
+        holes = []
+        # luu ket qua
+        for circle in circles:
+            x, y, r = circle
+            hole = (x,y,r)
+            print(x, y, r)
+            print(circularity_check(x,y,r))
+            # check xem hole nay co trung voi loat truoc khong
+            if not is_hole_already_exist(x,y,r):
+                valid_circles.append(circle)
+                holes.append(hole)
+
+        result = {"name": f"{1}-{1}",
+                "lane": 1,
+                "turn": 1,
+                "holes": holes
+                }
+        results.append(result)
+
+        for result in results:
+            #print(f"loat {result["turn"]} ban trung : {len(result["holes"])} phat dan")
+            for (x,y,r) in result["holes"]:
+                draw_debug(zoomed, x,y,r,result["turn"])
+
+    # Display the frame
+    cv2.imshow('Video Frame', zoomed)
+    cv2.waitKey(0)
+    # Break the loop when the user presses 'q'
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        cv2.destroyAllWindows()

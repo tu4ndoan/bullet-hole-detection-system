@@ -5,6 +5,7 @@ import numpy as np
 import os
 import camera
 import image_processing
+import cv2
 
 # Local Variable
 program_name = "Tiểu đoàn 1038 - Báo bia bằng camera"
@@ -78,8 +79,8 @@ def start_shooting():
             os.makedirs(result_dir)
     # chụp tất cả các bia trước khi bắn để so sánh
     # call parallel capture
-    camera.parallel_capture(camera.cameras, num_turn)
-    messagebox.showinfo("Thông báo", "Bắt đầu bắn")
+    #camera.parallel_capture(camera.cameras, 0)
+    messagebox.showinfo("Thông báo", f"Bắt đầu bắn loạt {num_turn}")
 
 
 def add_shooting_lane():
@@ -100,7 +101,8 @@ def add_shooting_turn():
     Add a new shooting turn.
     """
     global num_turn
-    num_turn = num_turn + 1
+    num_turn += 1
+    
     messagebox.showinfo("Thông báo", f"Đã thêm 1 Loạt bắn, tổng cộng {num_turn} loạt bắn")
 
 def review_result(img, lane, turn, target):
@@ -108,9 +110,7 @@ def review_result(img, lane, turn, target):
 
 def process_and_save_result(lane, turn, target):
     img = image_processing.load_image(lane, turn, target)
-    #img = cv2.imread("./Images/Lane1/test-1-2.jpg")# just for testing
-    
-    image_processing.detect_bullet_hole(img, turn, lane, target)
+    image_processing.detect_bullet_hole(img, turn, lane, target, 15, 15, 150, 150, 100, 150, 14, 1, 20)
 
 
 def shooting_turn_complete():
@@ -120,10 +120,11 @@ def shooting_turn_complete():
     global num_turn, num_lane
     # call parallel capture again
     camera.parallel_capture(camera.cameras, num_turn)
-    for lane in range(num_lane):
-        print(f"loat thu {num_turn}, dai ban {lane+1}")
-        for target in targets:
-            process_and_save_result(lane+1, num_turn, target)
+    cv2.waitKey(1000)
+    #for lane in range(num_lane):
+    print(f"loat thu {num_turn}, dai ban {1}")
+    for target in targets:
+        process_and_save_result(1, num_turn, target)
 
 def reset():
     """

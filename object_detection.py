@@ -1,35 +1,95 @@
 import cv2
+import numpy as np
 
-# Load YOLO
-net = cv2.dnn.readNet("yolov3.weights", "yolov3.cfg")
-layer_names = net.getLayerNames()
-output_layers = [layer_names[i[0] - 1] for i in net.getLayers()]
+def detect_target(image):
+    """
+    Detects an object (e.g., a shooting target) in the image using contour detection.
+    
+    Args:
+        image (np.array): The input image.
+        
+    Returns:
+        (np.array): The cropped region around the detected target.
+    """
+    # Convert the image to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-# Read image
-image = cv2.imread('./Images/Lane1/BiaSo8-1-1.jpg')
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-# Get image shape
-height, width, channels = image.shape
+    # Threshold the image to get a binary image
+    _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-# Prepare image for YOLO
-blob = cv2.dnn.blobFromImage(image, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
-net.setInput(blob)
-outs = net.forward(output_layers)
+    # Find contours in the thresholded image
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-# Process the outputs and draw bounding boxes
-for out in outs:
-    for detection in out:
-        scores = detection[5:]
-        class_id = np.argmax(scores)
-        confidence = scores[class_id]
-        if confidence > 0.5:
-            center_x = int(detection[0] * width)
-            center_y = int(detection[1] * height)
-            w = int(detection[2] * width)
-            h = int(detection[3] * height)
-            cv2.rectangle(image, (center_x - w // 2, center_y - h // 2), (center_x + w // 2, center_y + h // 2), (0, 255, 0), 2)
+    # Find the largest contour (assuming it's the target)
+    target_contour = max(contours, key=cv2.contourArea)
 
-# Show the result
-cv2.imshow('Object Detection', image)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    # Get the bounding box for the contour
+    x, y, w, h = cv2.boundingRect(target_contour)
+
+    # Create a mask for the detected target (use the bounding box)
+    mask = np.zeros_like(image)
+    cv2.drawContours(mask, [target_contour], -1, (255, 255, 255), -1)
+
+    # Apply the mask to the image (keep the target, remove background)
+    target = cv2.bitwise_and(image, mask)
+
+    # Crop the region around the detected target
+    cropped_image = image[y:y+h, x:x+w]  # Crop using the bounding box coordinates
+
+    return cropped_image, target, mask
+
+def zoom_in(image, zoom_factor=1.5):
+    """
+    Zooms in on the center of the image by the given zoom factor.
+    
+    Args:
+        image (np.array): The input image.
+        zoom_factor (float): Factor by which to zoom in. (e.g., 1.5 means 50% zoom-in).
+        
+    Returns:
+        np.array: Zoomed-in image.
+    """
+    # Get the dimensions of the image
+    height, width = image.shape[:2]
+    
+    # Calculate the new dimensions for zoom
+    new_width = int(width * zoom_factor)
+    new_height = int(height * zoom_factor)
+    
+    # Resize the image to the new dimensions
+    zoomed_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    
+    # Crop the center region of the zoomed image
+    x_start = (new_width - width) // 2
+    y_start = (new_height - height) // 2
+    zoomed_in = zoomed_image[y_start:y_start+height, x_start:x_start+width]
+    
+    return zoomed_in
+
+# Load the input image
+image_path = './Images/Lane1/BiaTest-1-1.jpg'  # Replace with the path to your image
+image = cv2.imread(image_path)
+
+# Step 1: Detect the target (e.g., shooting target)
+cropped_target, target_masked, target_mask = detect_target(image)
+
+if cropped_target is not None:
+    # Step 2: Zoom in on the detected target
+    zoomed_target = zoom_in(cropped_target, zoom_factor=1)
+
+    # Step 3: Resize the target mask to match the size of the zoomed-in target
+    target_mask_resized = cv2.resize(target_mask, (zoomed_target.shape[1], zoomed_target.shape[0]), interpolation=cv2.INTER_NEAREST)
+
+    # Step 4: Remove background (by using the resized target mask)
+    background_removed = cv2.bitwise_and(zoomed_target, target_mask_resized)
+
+    # Show the results
+    cv2.imshow('Zoomed Target', zoomed_target)
+    cv2.imshow('Background Removed', background_removed)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+else:
+    print("Target not detected.")
