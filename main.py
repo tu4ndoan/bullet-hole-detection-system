@@ -110,7 +110,7 @@ def review_result(img, lane, turn, target):
 
 def process_and_save_result(lane, turn, target):
     img = image_processing.load_image(lane, turn, target)
-    image_processing.detect_bullet_hole(img, turn, lane, target, 15, 15, 150, 150, 100, 150, 14, 1, 20)
+    image_processing.detect_bullet_hole(img, turn, lane, target, 9, 9, 150, 150, 100, 150, 12, 1, 10)
 
 
 def shooting_turn_complete():

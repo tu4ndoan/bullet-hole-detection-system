@@ -82,13 +82,13 @@ if cropped_target is not None:
 
     # Step 3: Resize the target mask to match the size of the zoomed-in target
     target_mask_resized = cv2.resize(target_mask, (zoomed_target.shape[1], zoomed_target.shape[0]), interpolation=cv2.INTER_NEAREST)
-
+    target_mask_inverted = cv2.bitwise_not(target_mask_resized)
     # Step 4: Remove background (by using the resized target mask)
-    background_removed = cv2.bitwise_and(zoomed_target, target_mask_resized)
+    background_removed = cv2.bitwise_and(zoomed_target, target_mask_inverted)
 
     # Show the results
     cv2.imshow('Zoomed Target', zoomed_target)
-    cv2.imshow('Background Removed', background_removed)
+    #cv2.imshow('Background Removed', background_removed)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 else:
