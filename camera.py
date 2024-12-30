@@ -1,6 +1,6 @@
 import cv2
 import threading
-import image_processing
+import os
 
 
 # khi gan camera vao may tinh, cho phep user init camera va add vao array cameras
@@ -50,8 +50,11 @@ class Camera:
         cv2.imshow("Captured Image", frame)
 
     def save_image(self, frame, turn):
+        # if folder lane not exist, create new
         # Save the captured frame as a file
         path = f"./Images/Lane{self.lane}/"
+        if not os.path.exists(path):
+            os.makedirs(path)
         cv2.imwrite(f"{path}{self.target}-{self.lane}-{turn}.jpg", frame)
 
     def set_lane(self, lane):

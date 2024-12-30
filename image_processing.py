@@ -136,6 +136,8 @@ def draw_debug_elipse(image, a, b, h, k):
 def calculate_score(lane, turn):
     # get the bullet holes from lane, turn, target
     holes = get_bullet_holes(lane, turn)
+    if holes == None:
+        return
     #(h,k) = get_target_center("test")
     h = 958
     k = 750
@@ -148,6 +150,8 @@ def calculate_score(lane, turn):
     scores = []
     i = 0
     message = f"Loạt {turn}, bệ số {lane}:"
+    
+        
     for (x, y, r) in holes:
         i = i + 1
         if is_score_inside_ellipse(x,y,h,k,a,b):
@@ -244,14 +248,157 @@ def draw_debug(image, x,y,r, turn):
     thickness = 2
     cv2.putText(image, str(turn), (x - 2 * r // 3, y + 2 * r // 3), font, font_scale, color, thickness)
 
-def circularity_check(x, y, r):
-    area = np.pi*r**2
-    perimeter = 2*np.pi*r
-
-    if perimeter > 0:  # Avoid division by zero
+def circularity_check(image,x, y, r):
+    """
+    Checks if a detected circle is likely a bullet hole based on circularity and contrast.
+    
+    Args:
+    - image (np.array): The input image.
+    - x (int): The x-coordinate of the circle's center.
+    - y (int): The y-coordinate of the circle's center.
+    - r (int): The radius of the circle.
+    - min_contrast (float): Minimum contrast ratio between the inside and outside of the circle.
+    - max_circularity (float): Maximum allowed circularity for a valid bullet hole.
+    
+    Returns:
+    - bool: True if the circle passes the circularity and contrast checks, False otherwise.
+    """
+    
+    # Crop the region around the circle
+    cropped_circle = image[y-r:y+r, x-r:x+r]
+    
+    # Create a mask for the circle (ensure it is single-channel for contouring)
+    mask = np.zeros(cropped_circle.shape, dtype=np.uint8)
+    cv2.circle(mask, (r, r), r, 255, -1)  # Full circle mask
+    
+    # Get the intensity values inside and outside the circle
+    inside_values = cropped_circle[mask == 255]
+    outside_values = cropped_circle[mask == 0]
+    
+    # Calculate contrast: mean intensity inside vs outside
+    inside_mean = np.mean(inside_values)
+    outside_mean = np.mean(outside_values)
+    
+    contrast = abs(inside_mean - outside_mean) / max(inside_mean, outside_mean)
+    
+    # Convert the mask to grayscale (it should already be single-channel, but for safety)
+    mask_gray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY) if len(mask.shape) > 2 else mask
+    
+    # Calculate circularity using the contour of the circle
+    contours, _ = cv2.findContours(mask_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if len(contours) > 0:
+        contour = contours[0]
+        perimeter = cv2.arcLength(contour, True)
+        area = cv2.contourArea(contour)
+        
+        if perimeter == 0:
+            return False
+        
+        # Circularity formula
         circularity = (4 * np.pi * area) / (perimeter ** 2)
         
-        return circularity
+        # Check if the circularity is within the acceptable range and contrast threshold
+        if 0.5 <= circularity <= 1.1:
+            return True
+    
+    return True
+
+def detect_bullet_hole_test(image, turn, lane, target, gray_blur_value, block_size, thresh_a_val ,thresh_value, edge_thresh_1, edge_thresh_2,  min_dist, param1, param2, min_rad, max_rad):
+    # pre-processing
+    #draw_debug_elipse(image, 100, 80, 958, 750)
+    cropped_target, target_masked, target_mask = object_detection.detect_target(image)
+    zoomed = object_detection.zoom_in(cropped_target, 1) #TODO check xem tại sao crop sai ban đêm
+    zoomed = image
+    gray = cv2.cvtColor(zoomed, cv2.COLOR_BGR2GRAY)
+    
+    # Histogram Equalization to improve contrast
+    gray_equalized = cv2.equalizeHist(gray)
+
+    # Apply Gaussian Blur to smooth lighting variations
+    gray_blurred = cv2.GaussianBlur(gray_equalized, (gray_blur_value, gray_blur_value), 0)
+    
+    # Adaptive thresholding to account for varying lighting conditions
+    thresh_adaptive = cv2.adaptiveThreshold(
+        gray_blurred, 
+        255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY, 
+        block_size, 
+        thresh_a_val
+    )
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+
+# Apply CLAHE to the image
+    clahe_image = clahe.apply(gray_blurred)
+   # cropped_target, target_masked, target_mask = object_detection.detect_target(image)
+   # zoomed = object_detection.zoom_in(cropped_target, 1)
+    # Further binary thresholding if needed
+    ret, inv_thresh = cv2.threshold(gray_blurred, 150, 255, cv2.THRESH_BINARY_INV)
+    _, thresh = cv2.threshold(gray_blurred, 200, 255, cv2.THRESH_BINARY)
+    ret, trunc_thresh = cv2.threshold(clahe_image, 55, 255, cv2.THRESH_TRUNC)
+    ret, otsu_thresh = cv2.threshold(trunc_thresh, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+
+    # Edge detection with dynamic thresholds
+    median_intensity = np.median(gray_blurred)
+    lower_thresh = max(0, median_intensity - edge_thresh_1)
+    upper_thresh = min(255, median_intensity + edge_thresh_2)
+    edges = cv2.Canny(trunc_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
+    
+    
+    # Apply dilation and erosion to link fragmented edges
+    kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
+    dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
+    linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
+    
+    
+    # Detect circles using HoughCircles
+    circles = cv2.HoughCircles(
+        linked_edges, 
+        cv2.HOUGH_GRADIENT, 
+        dp=0.1, 
+        minDist=min_dist, 
+        param1=param1, 
+        param2=param2, 
+        minRadius=min_rad, 
+        maxRadius=max_rad
+    )
+
+    # Process detected circles and filter based on size and circularity
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+        valid_circles = []
+        holes = []
+        for circle in circles:
+            x, y, r = circle
+            print(r)
+            if circularity_check(image, x, y, r) and min_rad <= r <= max_rad:
+                valid_circles.append(circle)
+                holes.append((x, y, r))
+
+        result = {"name": f"{lane}-{turn}",
+                  "lane": lane,
+                  "turn": turn,
+                  "holes": holes
+                  }
+        results.append(result)
+        
+        for result in results:
+            print(f"loat {result['turn']} ban trung : {len(result['holes'])} phat dan")
+            for (x, y, r) in result['holes']:
+                draw_debug(zoomed, x, y, r, result["turn"])
+            
+    cv2.imshow('Video Frame', zoomed)
+    cv2.imshow("edge", linked_edges)
+    #cv2.imshow("thresh", thresh)
+    cv2.imshow("trunc", trunc_thresh)
+    #cv2.imshow("otsu",otsu_thresh)
+    #cv2.imshow("inverse", inv_thresh)
+    calculate_score(lane, turn)
+    save_image(zoomed, lane, turn, target)  
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
 
 def detect_bullet_hole(image, turn, lane, target, gray_blur_value ,thresh_value, edge_thresh_1, edge_thresh_2,  min_dist, param1, param2, min_rad, max_rad):
     # pre-processing
@@ -259,7 +406,9 @@ def detect_bullet_hole(image, turn, lane, target, gray_blur_value ,thresh_value,
     cropped_target, target_masked, target_mask = object_detection.detect_target(image)
     zoomed = object_detection.zoom_in(cropped_target, 1)
     gray = cv2.cvtColor(zoomed, cv2.COLOR_BGR2GRAY)
+    #gray_equalized = cv2.equalizeHist(gray)
     gray_blurred = cv2.GaussianBlur(gray, (gray_blur_value, gray_blur_value), 0)
+
     _, thresh_binary = cv2.threshold(gray_blurred, thresh_value, 255, cv2.THRESH_BINARY) # da test ok voi anh Tuan 9,200,150,150,100,150,11,1,11, van con bi mat phang nhap nho
     #_, thresh_a = adaptive_thresholding(gray_blurred)
     _, thresh_b = cv2.threshold(thresh_binary, thresh_value, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -306,6 +455,7 @@ def detect_bullet_hole(image, turn, lane, target, gray_blur_value ,thresh_value,
             
     cv2.imshow('Video Frame', zoomed)
     cv2.imshow("edge", edges)
+    # draw concentric circles/elipse
     calculate_score(lane, turn)
     save_image(zoomed, lane, turn, target)  
     cv2.waitKey(0)
@@ -332,8 +482,7 @@ def detect_bullet_hole(image, turn, lane, target, gray_blur_value ,thresh_value,
 
         root.mainloop()"""
 
-def nothing(x):
-    pass
+
 if __name__ == "__main__":
     cam = camera.Camera(1,"BiaTest", 1)
     img = cam.capture_image(1)
@@ -341,20 +490,19 @@ if __name__ == "__main__":
     cropped_target, target_masked, target_mask = object_detection.detect_target(img)
     zoomed = object_detection.zoom_in(cropped_target, 1)
     gray = cv2.cvtColor(zoomed, cv2.COLOR_BGR2GRAY)
-    gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
-    _, thresh = cv2.threshold(gray_blurred, 150, 255, cv2.THRESH_BINARY)
-    edges = cv2.Canny(thresh, threshold1=150, threshold2=150)
-    #contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    gray_blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(gray_blurred, 200, 255, cv2.THRESH_BINARY)
+    edges = cv2.Canny(thresh, threshold1=200, threshold2=200)
     # find holes
     circles = cv2.HoughCircles(
         edges, 
         cv2.HOUGH_GRADIENT, 
         dp=1, 
-        minDist=100, 
-        param1=150, 
-        param2=15, 
-        minRadius=3, 
-        maxRadius=11
+        minDist=10, 
+        param1=50, 
+        param2=16, 
+        minRadius=5, 
+        maxRadius=16
     )
 
     if circles is not None:
@@ -386,37 +534,8 @@ if __name__ == "__main__":
 
     # Display the frame
     cv2.imshow('Video Frame', zoomed)
+    cv2.imshow("edges", edges)
     cv2.waitKey(0)
     # Break the loop when the user presses 'q'
     if cv2.waitKey(1) & 0xFF == ord('q'):
         cv2.destroyAllWindows()
-
-        #FIND ELIPSE
-    # Step 5: Detect bullet holes (circles/ellipses)
-    """detected_bullet_holes = []
-    for contour in contours:
-        if 1<cv2.contourArea(contour) <10:  # Filter out small contours
-            # Step 6: Fit ellipse to contour (handles perspective distortion)
-            if len(contour) >= 5:  # At least 5 points required to fit an ellipse
-                ellipse = cv2.fitEllipse(contour)
-                detected_bullet_holes.append(ellipse)
-            else:
-                print("not elipse")
-    for ellipse in detected_bullet_holes:
-        center, axes, angle = ellipse
-        
-        # Ensure center is a tuple of integers
-        center = tuple(map(int, center))
-        
-        # Convert axes to integers (semi-major and semi-minor axes)
-        axes = tuple(map(int, axes))
-        
-        color = (0, 255, 0)  # Green color
-        thickness = 2
-        
-        # Draw the ellipse
-        cv2.ellipse(img, center, axes, angle, 0, 360, color, thickness)
-    cv2.imshow("img",img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    """
