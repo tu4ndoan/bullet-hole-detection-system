@@ -11,17 +11,51 @@ def detect_target(image):
     Returns:
         (np.array): The cropped region around the detected target.
     """
+    
     # Convert the image to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Apply Gaussian blur to reduce noise
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    #blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    # Threshold the image to get a binary image
-    _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Histogram Equalization to improve contrast
+    #gray_equalized = cv2.equalizeHist(gray)
+    
+    # Apply Gaussian Blur to smooth lighting variations
+    gray_blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    # Apply CLAHE to the image
+    #clahe_image = clahe.apply(gray_blurred)
+    # Adaptive thresholding to account for varying lighting conditions
+    thresh_adaptive = cv2.adaptiveThreshold(
+        gray_blurred, 
+        255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY, 
+        11, 
+        2
+    )
+    # Further thresholding
+    ret, otsu_thresh = cv2.threshold(thresh_adaptive, 150, 255, cv2.THRESH_BINARY)
 
+
+    # Edge detection with dynamic thresholds
+    median_intensity = np.median(gray_blurred)
+    lower_thresh = max(0, median_intensity - 150)
+    upper_thresh = min(255, median_intensity + 150)
+    edges = cv2.Canny(otsu_thresh, threshold1=50, threshold2=150)
+    
+    
+    # Apply dilation and erosion to link fragmented edges
+    kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
+    dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
+    linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
+    cv2.imshow("adaptive", thresh_adaptive)
+    cv2.waitKey(0)
     # Find contours in the thresholded image
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(otsu_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Find the largest contour (assuming it's the target)
     target_contour = max(contours, key=cv2.contourArea)
@@ -69,27 +103,30 @@ def zoom_in(image, zoom_factor=1.5):
     
     return zoomed_in
 
-# Load the input image
-image_path = './Images/Lane1/BiaTest-1-1.jpg'  # Replace with the path to your image
-image = cv2.imread(image_path)
+if __name__ == "__main__":
+    # Load the input image
+    image_path = './Images/Lane1/BiaTest-1-1.jpg'  # Replace with the path to your image
+    image = cv2.imread(image_path)
 
-# Step 1: Detect the target (e.g., shooting target)
-cropped_target, target_masked, target_mask = detect_target(image)
+    # Step 1: Detect the target (e.g., shooting target)
+    try:
+        cropped_target, target_masked, target_mask = detect_target(image)
+    except:
+        cropped_target = image
+    if cropped_target is not None:
+        # Step 2: Zoom in on the detected target
+        zoomed_target = zoom_in(cropped_target, zoom_factor=1)
 
-if cropped_target is not None:
-    # Step 2: Zoom in on the detected target
-    zoomed_target = zoom_in(cropped_target, zoom_factor=1)
+        # Step 3: Resize the target mask to match the size of the zoomed-in target
+        target_mask_resized = cv2.resize(target_mask, (zoomed_target.shape[1], zoomed_target.shape[0]), interpolation=cv2.INTER_NEAREST)
+        target_mask_inverted = cv2.bitwise_not(target_mask_resized)
+        # Step 4: Remove background (by using the resized target mask)
+        background_removed = cv2.bitwise_and(zoomed_target, target_mask_inverted)
 
-    # Step 3: Resize the target mask to match the size of the zoomed-in target
-    target_mask_resized = cv2.resize(target_mask, (zoomed_target.shape[1], zoomed_target.shape[0]), interpolation=cv2.INTER_NEAREST)
-    target_mask_inverted = cv2.bitwise_not(target_mask_resized)
-    # Step 4: Remove background (by using the resized target mask)
-    background_removed = cv2.bitwise_and(zoomed_target, target_mask_inverted)
-
-    # Show the results
-    cv2.imshow('Zoomed Target', zoomed_target)
-    #cv2.imshow('Background Removed', background_removed)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-else:
-    print("Target not detected.")
+        # Show the results
+        cv2.imshow('Zoomed Target', zoomed_target)
+        #cv2.imshow('Background Removed', background_removed)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    else:
+        print("Target not detected.")
