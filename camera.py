@@ -2,18 +2,12 @@ import cv2
 import threading
 import os
 
-
-# khi gan camera vao may tinh, cho phep user init camera va add vao array cameras
 class Camera:
     def __init__(self, lane=None, target=None, camera_id = 0):
         self.cap = None
         self.lane = lane  # Lane the camera is focused on
         self.target = target  # Target object or area the camera is aimed at
         self.camera_id = camera_id
-        # Check if the camera opened successfully
-        #if not self.cap.isOpened():
-        #    print("Error: Could not open the camera.")
-        #    exit()
 
     def capture_image(self, turn):
         # Capture a single frame from the camera
@@ -72,6 +66,9 @@ class Camera:
     def get_target(self):
         # Get the target property
         return self.target
+
+    def get_camera_id(self):
+        return self.camera_id
 
     def release(self):
         # Release the camera and close any OpenCV windows

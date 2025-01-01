@@ -7,8 +7,10 @@ import image_processing
 cam_1 = camera.Camera(1,"BiaSo4",1)
 #img1 = cam_1.capture_image(15)
 #cv2.waitKey(5000)
-#img2 = cam_1.capture_image(1)
-image_processing.compare_and_detect(1, 16, "BiaSo4")
+img2 = cam_1.capture_image(99)
+#image_processing.compare_and_detect(1, 16, "BiaSo4")
 # TODO: handle case 2 lo dan gan nhau hoac de len nhau
 # TODO: handle case 2 lo dan trung nhau
 # TODO: bao diem nhieu dai
+# TODO: tính điểm
+image_processing.get_center_ellipse_parameters(img2)

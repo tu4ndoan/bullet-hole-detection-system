@@ -38,7 +38,7 @@ max_radius = 1
 camera_to_target_distance = 1
 
 # Dictionary to store detected cameras
-camera_detected = {}
+camera_detected = []
 camera_objects = []
 targets = [] #lets make the user input this
 
@@ -222,7 +222,7 @@ def open_variable_editor(camera_id):
     
     # Create a new Toplevel window
     top = tk.Toplevel()
-    top.title(f"Nhập thông tin camera {camera_id}")
+    top.title(f"Camera số {camera_id}")
 
     # Create the option menu with the predefined values
     bia_options = ["BiaSo4", "BiaSo8", "BiaSo10"]
@@ -247,20 +247,35 @@ def check_camera_and_open_editor(max_camera):
             else:
                 cap = cv2.VideoCapture(camera_id)
                 if cap.isOpened():
-                    camera_detected[camera_id] = True
+                    camera_detected.append(camera_id)
                     cap.release()  # Close the camera after detection
+                    open_variable_editor(camera_id)
+                    cv2.waitKey(0)
                 else:
-                    detection_label.config(text=f"Đã nhập {len(camera_detected)} camera")
-            if camera_id in camera_detected:
-                open_variable_editor(camera_id)
-                cv2.waitKey(0)
+                    detection_label.config(text=f"Đã nhập {len(camera_detected)} camera")                
     
-# Label to show camera detection status
-detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera_detected)} camera đã thêm")
-detection_label.pack(pady=20)
 
-# Start the camera detection in a separate thread
-#threading.Thread(target=detect_cameras_thread, daemon=True).start()
+
+def view_camera(camera_id):
+    print(camera_id)
+    try:
+        cam = camera_objects[camera_id-1]
+        img = cam.capture_image(0)
+        cv2.imshow(f"camera {camera_id} - dai so {cam.get_lane()} - muc tieu {cam.get_target()}",img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    except Exception as e:
+        print(e)
+
+def view_all_camera():
+    new_window = tk.Toplevel()
+    new_window.title("Tất cả camera")
+    new_window.geometry("400x300")
+    for camera in camera_objects:
+        camera_id = camera.get_camera_id()
+        camera_btn = tk.Button(new_window, text=f"camera {camera_id}", command=lambda: view_camera(camera_id))
+        camera_btn.pack(pady=5)
+    print("view all cam")
 
 def show_result():
     photo1 = photo2 = photo3 = None
@@ -391,5 +406,10 @@ edit_variables_btn.pack(padx=10, side="left")
 add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(10))# cho phép nhập max camera
 add_camera_btn.pack(padx=10, side="left")
 
+check_camera_btn = tk.Button(root, text="Kiểm tra camera", command=view_all_camera)
+check_camera_btn.pack(padx=10, side="left")
+
+detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera_detected)} camera đã thêm")
+detection_label.pack(pady=20)
 
 root.mainloop()

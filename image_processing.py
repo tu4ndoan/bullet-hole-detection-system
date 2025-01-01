@@ -66,7 +66,7 @@ def get_center_ellipse_parameters(image):
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
         cv2.THRESH_BINARY, 
         11, 
-        5
+        2
     )
     
    
@@ -79,9 +79,9 @@ def get_center_ellipse_parameters(image):
 
     # Edge detection with dynamic thresholds
     median_intensity = np.median(gray_blurred)
-    lower_thresh = max(0, median_intensity - 150)
+    lower_thresh = max(0, median_intensity - 50)
     upper_thresh = min(255, median_intensity + 150)
-    edges = cv2.Canny(otsu_thresh, threshold1=150, threshold2=150)
+    edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
     
     
     # Apply dilation and erosion to link fragmented edges
@@ -108,12 +108,10 @@ def get_center_ellipse_parameters(image):
                 aspect_ratio = max(axes) / min(axes)
 
             # If the aspect ratio is close to 1, it is more likely a perfect circle (or close ellipse)
-            if 0.9 < aspect_ratio < 1.3:
-            #if True:
-                #if (2000 < cv2.contourArea(contour) < 3000):
-                if (780000 < area < 820000):
+            if 0 < aspect_ratio < 2:
+                if (1000 < cv2.contourArea(contour) < 100000):
                     center_ellipse = ellipse
-                    print(f"found elipse {area} {aspect_ratio} {angle}")
+                    print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle}")
                     # Allow for slight variation in a perfect circle
                     cv2.ellipse(image, ellipse, (0, 255, 0), 2)
                     cv2.putText(image, str(int(area)), (int(h) + 5, int(k) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
@@ -122,11 +120,12 @@ def get_center_ellipse_parameters(image):
         (h, k) = center_ellipse[0]
         (a, b) = center_ellipse[1]
         angle = center_ellipse[2]
-    #draw_debug_elipse(image, a, b, h, k, angle)
-    #cv2.imshow("elipse", image)
-    #cv2.imshow("edge", edges)
-    #cv2.waitKey(0)
-    return a, b, h, k, angle
+    #draw_debug_elipse(image, 125, 145, 880, 495, 90)
+    cv2.imshow("elipse", image)
+    cv2.imshow("edge", linked_edges)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    return 125, 145, 880, 495, 90
 
 def draw_debug_elipse(image, a, b, h, k, angle):
     # rotation angle in degrees
@@ -135,7 +134,7 @@ def draw_debug_elipse(image, a, b, h, k, angle):
     for i in range(1,11):
     # Draw the ellipse on the image
         #cv2.ellipse(image, center, axes, 180, 0, 360, (255, 0, 0), 2)
-        cv2.ellipse(image, (int(h),int(k)), (int(a//4)*i,int(b//4)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
+        cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
         cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
 
 def calculate_score(lane, turn, target):
@@ -221,13 +220,15 @@ def is_hole_already_exist(x, y, w, h):
 
             # Calculate Euclidean distance
             distance = np.linalg.norm(hole2 - hole1)
-            if distance < 100:
-                if (w*h > c*d):
+            if distance < 50:
+                if (w*h >= c*d):
                     # Hole exists, update the hole
                     print("Hole exists, updating the hole value.")
                     result["holes"][i] = (x, y, w, h)  # Update the hole at index i
                     return False
-                return True
+                else:
+                    print("hole smaller")
+                    return True
     return False
 
 def draw_debug(image, x,y,r, turn):
@@ -505,14 +506,14 @@ def compare_and_detect(lane, turn, target):
         #if 0.1 < aspect_ratio < 2:  # aspect ratio threshold for elongated shapes
         #    if 0.1 < circularity < 2:
         if True:
-            if True:
-                if 30 < area < 600: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
-                    print(area, x, y)
+            if 6 < w < 45 and 6 < h < 45:
+                if 30 < area<1000: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
+                    print(area, x, y, w, h)
                     filtered_contours.append(contour)
                     x, y, w, h = cv2.boundingRect(contour)
-                    if not is_hole_already_exist(x, y, 1, 1):
+                    if not is_hole_already_exist(x, y, w, h):
                         valid_holes.append((x, y, w, h))
-                        cv2.putText(image_curr_turn, str(f"{area}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                        #cv2.putText(image_curr_turn, str(f"{area}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
                         result = {"name": f"{lane}-{turn}",
                                 "lane": lane,
                                 "turn": turn,
