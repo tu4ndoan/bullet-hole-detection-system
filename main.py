@@ -6,9 +6,6 @@ import os
 import camera
 import image_processing
 import cv2
-import threading
-import time
-
 
 # Create main window
 root = tk.Tk()
@@ -23,7 +20,6 @@ label = ttk.Frame(notebook)
 # Variables
 num_lane = len(notebook.tabs())
 num_turn = 1
-targets = ["BiaSo8"] #lets make the user input this
 
 # Image preprocessing variables
 blur_value = 1
@@ -40,6 +36,11 @@ param2 = 1
 min_radius = 1
 max_radius = 1
 camera_to_target_distance = 1
+
+# Dictionary to store detected cameras
+camera_detected = {}
+camera_objects = []
+targets = [] #lets make the user input this
 
 # Function to update global variables
 def update_variables():
@@ -169,15 +170,9 @@ def open_variable_editor():
 
     top.geometry("350x600")
 
-# Camera detection
-# Dictionary to store detected cameras
-camera_detected = {}
-camera_objects = []
-# Camera class to store the camera details
-
 # Function to detect the USB cameras in a separate thread
 def detect_cameras_thread():
-    global camera_detected
+    """global camera_detected
     max_cameras = 30  # Assuming we want to check for 5 possible camera indices (0-4)
 
     while True:
@@ -195,82 +190,77 @@ def detect_cameras_thread():
                     if camera_id in camera_detected:
                         print("camera exist")
                         #del camera_detected[camera_id]  # Remove if the camera was previously detected and is no longer available
-        time.sleep(1)
+        time.sleep(1)"""
+    print("called")
 
 # Function to create and store the Camera object based on user input
-def create_camera_object(camera_id):
-    global target_entry, lane_entry, top
+def create_camera_object(camera_id, lane, target):
+    top
+    # Validate the input for target and lane
+    if not target or not lane:
+        messagebox.showerror("Lỗi", f"Hãy nhập đủ các thông tin tên bia, dải bắn của camera {camera_id}")
+        return
 
-    try:
-        # Get the values from the entry fields
-        target = target_entry.get()
-        lane = lane_entry.get()
-
-        # Validate the input for target and lane
-        if not target or not lane:
-            print("Both target and lane must be filled out.")
-            return
-
-        # Create a Camera object with the values entered
-        camera_obj = camera.Camera(lane, target, camera_id)
+    # Create a Camera object with the values entered
+    camera_obj = camera.Camera(lane, target, camera_id)
+    if camera_obj not in camera_objects:
         camera_objects.append(camera_obj)
-        print(f"Camera Object Created: {camera_obj}")
-        
-        # Close the Toplevel window after applying
-        top.destroy()
+    if (target not in targets):
+        targets.append(target)
+    messagebox.showinfo("Thông báo",f"Đã nhập 1 camera: \nDải số: {lane} \nMục tiêu: {target}")
     
-    except Exception as e:
-        print(f"Error: {e}")
+    # Close the Toplevel window after applying
+    top.destroy()
 
 # Function to open the variable input window
 def open_variable_editor(camera_id):
-    global target_entry, lane_entry, top
-
+    global top
+    # Create a variable to store the selected value
+    bia_var = tk.StringVar()
+    # Set a default value for the option menu
+    bia_var.set("BiaSo4")
+    
     # Create a new Toplevel window
     top = tk.Toplevel()
-    top.title(f"Camera {camera_id} Settings")
+    top.title(f"Nhập thông tin camera {camera_id}")
 
-    # Create entry fields and labels for target and lane
-    ttk.Label(top, text="Target:").pack(pady=5)
-    target_entry = ttk.Entry(top)
-    target_entry.insert(0, "Enter Target")  # Default value
-    target_entry.pack(pady=5)
-
+    # Create the option menu with the predefined values
+    bia_options = ["BiaSo4", "BiaSo8", "BiaSo10"]
+    bia_menu = tk.OptionMenu(top, bia_var, *bia_options)
+    bia_menu.pack(pady=5)
     ttk.Label(top, text="Lane:").pack(pady=5)
     lane_entry = ttk.Entry(top)
     lane_entry.insert(0, "Enter Lane")  # Default value
     lane_entry.pack(pady=5)
-
+    
     # Create the "Apply and Close" button
-    apply_button = ttk.Button(top, text="Apply and Close", command=lambda: create_camera_object(camera_id))
+    apply_button = ttk.Button(top, text="OK", command=lambda: create_camera_object(camera_id, lane_entry.get(), bia_var.get()))
     apply_button.pack(pady=20)
 
     top.geometry("300x200")
 
 # Function to check if the camera is detected and update the GUI accordingly
-def check_camera_and_open_editor(camera_id):
-    if camera_id in camera_detected:
-        open_variable_editor(camera_id)
-        cv2.waitKey(0)
-    else:
-        # Camera is not detected, show a message in the main window
-        detection_label.config(text=f"Camera {camera_id} not detected. Please connect a USB camera.")
-
+def check_camera_and_open_editor(max_camera):
+    for camera_id in range(1, max_camera):
+            if (camera_id in camera_detected):
+                print("camera added")
+            else:
+                cap = cv2.VideoCapture(camera_id)
+                if cap.isOpened():
+                    camera_detected[camera_id] = True
+                    cap.release()  # Close the camera after detection
+                else:
+                    detection_label.config(text=f"Đã nhập {len(camera_detected)} camera")
+            if camera_id in camera_detected:
+                open_variable_editor(camera_id)
+                cv2.waitKey(0)
     
 # Label to show camera detection status
-detection_label = ttk.Label(root, text="Checking for cameras...")
+detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera_detected)} camera đã thêm")
 detection_label.pack(pady=20)
 
-# Button to check each camera and open the variable editor when camera is detected
-for camera_id in range(5):  # Check for cameras with IDs 0 to 4
-    button_text = f"Check Camera {camera_id}"
-    check_button = ttk.Button(root, text=button_text, command=lambda camera_id=camera_id: check_camera_and_open_editor(camera_id))
-    check_button.pack(pady=5)
-
-    
 # Start the camera detection in a separate thread
-threading.Thread(target=detect_cameras_thread, daemon=True).start()
-
+#threading.Thread(target=detect_cameras_thread, daemon=True).start()
 
 def show_result():
     photo1 = photo2 = photo3 = None
@@ -278,14 +268,14 @@ def show_result():
 
     for turn in range(num_turn):
         for lane in range(num_lane):
-            result_dir = f"./Images/Result/Lane{lane+1}"
+            result_dir = f"./HinhAnh/KetQua/DaiBan{lane+1}"
             
             if os.path.exists(result_dir):
                 try:
                     # Load images using Pillow
-                    image1 = Image.open(f"./Images/Result/Lane{lane+1}/BiaSo4-{lane+1}-{turn+1}-marked.jpg")
-                    image2 = Image.open(f"./Images/Result/Lane{lane+1}/BiaSo10-{lane+1}-{turn+1}-marked.jpg")
-                    image3 = Image.open(f"./Images/Result/Lane{lane+1}/BiaSo8-{lane+1}-{turn+1}-marked.jpg")
+                    image1 = Image.open(f"./HinhAnh/KetQua/DaiBan{lane+1}/BiaSo4-{lane+1}-{turn+1}-marked.jpg")
+                    image2 = Image.open(f"./HinhAnh/KetQua/DaiBan{lane+1}/BiaSo10-{lane+1}-{turn+1}-marked.jpg")
+                    image3 = Image.open(f"./HinhAnh/KetQua/DaiBan{lane+1}/BiaSo8-{lane+1}-{turn+1}-marked.jpg")
 
                     # Convert the images to a format Tkinter can use
                     photo1 = ImageTk.PhotoImage(image1)
@@ -293,7 +283,7 @@ def show_result():
                     photo3 = ImageTk.PhotoImage(image3)
 
                     new_window = tk.Toplevel(root)
-                    new_window.title(f"Ket Qua Ban Loat {turn+1}, Be So {lane+1}")
+                    new_window.title(f"Kết quả bắn loạt {turn+1}")
                     new_window.geometry("1920x1080")
                     # Create labels and add them to the window
                     label1 = tk.Label(new_window, image=photo1)
@@ -320,8 +310,8 @@ def start_shooting():
     """
     # for each lane create a subfolder for containging images
     for lane in range(num_lane):
-        lane_dir = f"./Images/Lane{lane+1}"
-        result_dir = f"./Images/Result/Lane{lane+1}"
+        lane_dir = f"./HinhAnh/DaiBan{lane+1}"
+        result_dir = f"./HinhAnh/KetQua/DaiBan{lane+1}"
         if not os.path.exists(lane_dir):
             os.makedirs(lane_dir)
         if not os.path.exists(result_dir):
@@ -330,7 +320,6 @@ def start_shooting():
     # call parallel capture
     camera.parallel_capture(camera_objects, 0)
     messagebox.showinfo("Thông báo", f"Bắt đầu bắn loạt {num_turn}")
-
 
 def add_shooting_lane():
     """
@@ -357,23 +346,16 @@ def add_shooting_turn():
 def review_result(img, lane, turn, target):
     print("review result")
 
-def process_and_save_result(lane, turn, target):
-    img = image_processing.load_image(lane, turn, target)
-    image_processing.detect_bullet_hole(img, turn, lane, target, 5, 200, 150, 150, 50, 150, 16, 2, 20)
-
-
 def shooting_turn_complete():
     """
     Complete the current shooting turn and capture an image.
     """
     global num_turn, num_lane
-    # call parallel capture again
-    camera.parallel_capture(camera.cameras, num_turn)
+    camera.parallel_capture(camera_objects, num_turn)
     cv2.waitKey(1000)
-    #for lane in range(num_lane):
-    print(f"loat thu {num_turn}, dai ban {1}")
-    for target in targets:
-        process_and_save_result(1, num_turn, target)
+    for lane in range (num_lane):
+        for target in targets:
+            image_processing.compare_and_detect(lane+1, num_turn, target)
 
 def reset():
     """
@@ -389,40 +371,6 @@ def reset():
 def get_current_tab():
     current_tab_id = notebook.select()
     return notebook.nametowidget(current_tab_id)
-
-def on_submit(param1, param2, param3, window):
-    if (param1, param2, param3, window):
-        print(f"Parameters received: {param1}, {param2}, {param3}")
-        add_camera(param1, param2, param3)
-
-    window.destroy()
-    
-def add_camera(lane, target, camera_id):
-    print("added 1 camera")
-
-def add_camera_form():
-    new_window = tk.Toplevel(root)
-    new_window.title("Them camera")
-    new_window.geometry("800x600")
-    label1 = tk.Label(new_window, text="Dải bắn sô:")
-    label1.pack(pady=5)
-    shooting_lane = tk.Entry(new_window)
-    shooting_lane.pack(pady=5)
-
-    label2 = tk.Label(new_window, text="Mục tiêu:")
-    label2.pack(pady=5)
-    target_name = tk.Entry(new_window)
-    target_name.pack(pady=5)
-
-    label3 = tk.Label(new_window, text="Camera ID:")
-    label3.pack(pady=5)
-    camera_id = tk.Entry(new_window)
-    camera_id.pack(pady=5)
-
-
-    submit_button = tk.Button(new_window, text="Thêm", command=lambda: on_submit(shooting_lane.get(), target_name.get(), camera_id.get(), new_window))
-    submit_button.pack(pady=20)
-
     
 # Create and pack buttons
 start_shooting_btn = tk.Button(root, text="Bắt đầu bắn", command=start_shooting)
@@ -437,13 +385,10 @@ add_shooting_turn_btn.pack(padx=10, side="left")
 shooting_turn_complete_btn = tk.Button(root, text="Báo bia", command=shooting_turn_complete)
 shooting_turn_complete_btn.pack(padx=10, side="left")
 
-#reset_btn = tk.Button(root, text="Xem kết quả bắn", command=show_result)
-#reset_btn.pack(padx=10, side="left")
-
 edit_variables_btn = tk.Button(root, text="Chỉnh sửa tham số", command=open_variable_editor)
 edit_variables_btn.pack(padx=10, side="left")
 
-add_camera_btn = tk.Button(root, text="Add Camera", command=add_camera_form)
+add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(10))# cho phép nhập max camera
 add_camera_btn.pack(padx=10, side="left")
 
 

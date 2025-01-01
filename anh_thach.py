@@ -15,30 +15,43 @@ Here's a general outline of how to approach this problem:
 ### Detailed Example:
 
 ```python"""
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-
+import image_processing
+import camera
 # Load images (before and after the shot) in grayscale
-image_before = cv2.imread('./Images/Lane1/BiaTest-1-1.jpg', 0)
-image_after = cv2.imread('./Images/Lane1/target-1-0.jpg', 0)
+
+gray_prev = cv2.imread('./Images/Lane1/BiaTest-1-13.jpg',0)
+gray_curr = cv2.imread('./Images/Lane1/BiaTest-1-15.jpg',0)
+cam_1 = camera.Camera(1,"BiaTest",1)
+img = cam_1.capture_image(22)
+
+image_processing.get_elipse_target_center(img)
 
 # Step 1: Feature detection and matching (ORB in this case)
 orb = cv2.ORB_create()
 
 # Detect keypoints and descriptors
-kp1, des1 = orb.detectAndCompute(image_before, None)
-kp2, des2 = orb.detectAndCompute(image_after, None)
+kp1, des1 = orb.detectAndCompute(gray_prev, None)
+kp2, des2 = orb.detectAndCompute(gray_curr, None)
 
 # Use BFMatcher to find the best matches between the descriptors
-bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-matches = bf.match(des1, des2)
+bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+matches = bf.knnMatch(des1, des2, k=2)
 
-# Sort the matches based on distance (best matches first)
-matches = sorted(matches, key = lambda x:x.distance)
+# Apply Lowe's ratio test
+good_matches = []
+for m, n in matches:
+    if m.distance < 0.75 * n.distance:
+        good_matches.append(m)
+
+# Sort the good matches based on distance
+good_matches = sorted(good_matches, key=lambda x: x.distance)
 
 # Step 2: Draw matches (for visualization)
-image_matches = cv2.drawMatches(image_before, kp1, image_after, kp2, matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+image_matches = cv2.drawMatches(gray_prev, kp1, gray_curr, kp2, good_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
 
 # Show the matched keypoints
 plt.imshow(image_matches)
@@ -46,29 +59,78 @@ plt.title('Feature Matches')
 plt.show()
 
 # Step 3: Extract matched keypoints
-src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
-# Step 4: Calculate homography matrix to align the images
-M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+# Step 4: Calculate homography matrix to align the images using RANSAC
+M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
 
 # Step 5: Warp the 'before' image to align with the 'after' image
-height, width = image_after.shape
-aligned_before = cv2.warpPerspective(image_before, M, (width, height))
+height, width = gray_curr.shape
+aligned_before = cv2.warpPerspective(gray_prev, M, (width, height))
 
 # Step 6: Calculate the absolute difference between the images
-diff_image = cv2.absdiff(aligned_before, image_after)
+diff_image = cv2.absdiff(aligned_before, gray_curr)
 
+#adaptive = cv2.adaptiveThreshold(diff_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 # Step 7: Threshold the difference image to highlight changes (bullet hole)
-_, thresh_diff = cv2.threshold(diff_image, 100, 255, cv2.THRESH_BINARY)
+_, thresh_diff = cv2.threshold(diff_image, 50, 255, cv2.THRESH_BINARY)
 
-# Step 8: Show the results
+# Step 8: Find contours in the thresholded difference image
+contours, _ = cv2.findContours(thresh_diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+filtered_contours = []
+# Step 9: Draw bounding boxes and annotate with numbers
+for i, contour in enumerate(contours):
+   x, y, w, h = cv2.boundingRect(contour)
+   aspect_ratio = float(w) / h if h != 0 else 0
+    
+   # Calculate the perimeter and area for circularity check
+   perimeter = cv2.arcLength(contour, True)
+   area = cv2.contourArea(contour)
+    
+   if perimeter == 0:
+      continue
+    
+   # Calculate circularity
+   circularity = 4 * np.pi * area / (perimeter ** 2)
+    
+   # Condition 1: Aspect ratio should not be too close to 1 (avoid squares and circles)
+   # Condition 2: Circularity should not be too close to 1 (avoid circles)
+   if 0.2 < aspect_ratio < 2:  # aspect ratio threshold for elongated shapes
+   #if True:
+      if 0.2 < circularity < 2:
+      #if True:
+         if 20 < area < 3000:
+            filtered_contours.append(contour)
+            x, y, w, h = cv2.boundingRect(contour)
+            valid_holes.append((x, y, w, h))
+
+            result = {"name": f"{lane}-{turn}",
+                    "lane": lane,
+                    "turn": turn,
+                    "holes": valid_holes
+                    }
+        
+            results.append(result)
+   for result in results:
+      print(f"loat {result['turn']} ban trung : {len(result['holes'])} phat dan")
+    
+      for (x, y, w, h) in result['holes']:
+         draw_debug(image_curr_turn, x, y, w, result["turn"])
+         # Calculate aspect ratio (width/height)
+         cv2.rectangle(gray_curr, (x, y), (x + w, y + h), (0, 255, 0), 2)
+         cv2.putText(gray_curr, str(f"{int(cv2.contourArea(contour))} - {aspect_ratio}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+
+# Step 10: Show the images with bounding boxes and numbers
+cv2.imshow('Bullet Holes Detected', gray_curr)
 cv2.imshow('Aligned Before Image', aligned_before)
 cv2.imshow('Difference Image', diff_image)
 cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
+
 """```
 
 ### Explanation of Each Step:

@@ -9,7 +9,7 @@ class Camera:
         self.cap = None
         self.lane = lane  # Lane the camera is focused on
         self.target = target  # Target object or area the camera is aimed at
-
+        self.camera_id = camera_id
         # Check if the camera opened successfully
         #if not self.cap.isOpened():
         #    print("Error: Could not open the camera.")
@@ -18,13 +18,13 @@ class Camera:
     def capture_image(self, turn):
         # Capture a single frame from the camera
         # Initialize the camera object
-        self.cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # Open the default camera
+        self.cap = cv2.VideoCapture(self.camera_id, cv2.CAP_DSHOW)  # Open the default camera
         # Wait for the webcam to initialize
         while not self.cap.isOpened():
-            print("Waiting for the webcam to initialize...")
+            print(f"Waiting for camera {self.camera_id} to initialize...")
             cv2.waitKey(100)  # Wait for 100 ms before checking again
 
-        print("Webcam initialized successfully!")
+        print(f"camera {self.camera_id} initialized successfully!")
         # Set resolution to 1080p
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
@@ -52,7 +52,7 @@ class Camera:
     def save_image(self, frame, turn):
         # if folder lane not exist, create new
         # Save the captured frame as a file
-        path = f"./Images/Lane{self.lane}/"
+        path = f"./HinhAnh/DaiBan{self.lane}/"
         if not os.path.exists(path):
             os.makedirs(path)
         cv2.imwrite(f"{path}{self.target}-{self.lane}-{turn}.jpg", frame)
@@ -100,14 +100,10 @@ cameras.append(camera_1)
 
 # Example usage:
 if __name__ == "__main__":
-    # Create a Camera object with initial lane and target
-    camera_0 = Camera(lane=1, target="BiaSo8", camera_id=0)
-    camera_1 = Camera(lane=1, target="BiaSo4", camera_id=1)
+    camera_1 = Camera(lane=1, target="BiaTest", camera_id=1)
     cameras = []
-    cameras.append(camera_0)
-    cameras.append(camera_1)
-
+    
     #parallel_capture(cameras, 1)
-    camera_1.capture_image(1)
+    camera_1.capture_image(0)
     # Display the current lane and target
 
