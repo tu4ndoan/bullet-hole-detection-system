@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 # tham so
 array = []
 results = []
+result_texts = []
 #
 def load_image(lane, turn, target):
     image = cv2.imread(f'./HinhAnh/DaiBan{lane}/{target}-{lane}-{turn}.jpg', 1)
@@ -21,6 +22,8 @@ def load_result(lane, turn, target):
     return result
 
 def save_image(image, lane, turn, target):
+    print(lane, turn, target)
+    #TODO:check dir exist and create
     cv2.imwrite(f"./HinhAnh/KetQua/DaiBan{lane}/{target}-{lane}-{turn}-marked.jpg", image)
 
 def is_hole_inside_ellipse(x, y, h, k, a, b, angle):
@@ -52,10 +55,10 @@ def get_center_ellipse_parameters(image):
     # Convert to grayscale
     cropped_target, target_masked, target_mask = object_detection.detect_target(image)
     zoomed = object_detection.zoom_in(cropped_target, 1)
-    cv2.imshow("zoom", zoomed)
-    cv2.waitKey(0)
+    #cv2.imshow("zoom", zoomed)
+    #cv2.waitKey(0)
 
-    gray = cv2.cvtColor(zoomed, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
     # Histogram Equalization to improve contrast
     gray_equalized = cv2.equalizeHist(gray)
@@ -98,6 +101,25 @@ def get_center_ellipse_parameters(image):
     # Find contours
     contours, _ = cv2.findContours(linked_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     center_ellipse = None
+    # Detect circles using HoughCircles
+    circles = cv2.HoughCircles(
+        linked_edges, 
+        cv2.HOUGH_GRADIENT, 
+        dp=0.1, 
+        minDist=min_dist, 
+        param1=param1, 
+        param2=param2, 
+        minRadius=min_rad, 
+        maxRadius=max_rad
+    )
+
+    # Process detected circles and filter based on size and circularity
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+        valid_circles = []
+        holes = []
+        for circle in circles:
+            x, y, r = circle
     # Iterate over the contours and fit ellipses
     for contour in contours:
         if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
@@ -114,23 +136,23 @@ def get_center_ellipse_parameters(image):
                 aspect_ratio = max(axes) / min(axes)
 
             # If the aspect ratio is close to 1, it is more likely a perfect circle (or close ellipse)
-            if 0 < aspect_ratio < 2:
-                if (1000 < cv2.contourArea(contour) < 100000):
-                    center_ellipse = ellipse
-                    #print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle}")
-                    # Allow for slight variation in a perfect circle
-                    #cv2.ellipse(image, ellipse, (0, 255, 0), 2)
-                    #cv2.putText(image, str(int(area)), (int(h) + 5, int(k) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+            
+            if (4000 < cv2.contourArea(contour) < 8000):
+                center_ellipse = ellipse
+                #print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle}")
+                # Allow for slight variation in a perfect circle
+                cv2.ellipse(image, ellipse, (0, 255, 0), 2)
+                cv2.putText(image, str(int(cv2.contourArea(contour))), (int(h) + 5, int(k) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
     a, b, h, k, angle = 0, 0, 0, 0, 0
     if (center_ellipse):
         (h, k) = center_ellipse[0]
         (a, b) = center_ellipse[1]
         angle = center_ellipse[2]
     #draw_debug_elipse(image, 125, 145, 880, 495, 90)
-    #cv2.imshow("elipse", image)
-    #cv2.imshow("edge", linked_edges)
-    #cv2.waitKey(0)
-    #cv2.destroyAllWindows()
+    cv2.imshow("elipse", image)
+    cv2.imshow("edge", linked_edges)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     return 125, 145, 1030, 490, 90
 
 def draw_debug_elipse(image, a, b, h, k, angle):
@@ -198,6 +220,7 @@ def calculate_score(lane, turn, target):
     message = message + f"\n Tổng: {total_score} điểm"
     messagebox.showinfo("Báo bia", message)
     # return diem tong
+    return message
 
 def on_image_click(event, canvas, img, text_entries, lane, turn, target):
     image = cv2.imread(f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg")
@@ -437,6 +460,7 @@ def preprocess_image(image):
     return linked_edges
 
 def compare_and_detect(lane, turn, target):
+    print(f"compare and detect {lane} {turn} {target}")
     image_prev_turn = load_image(lane, turn-1, target)
     image_curr_turn = load_image(lane, turn, target)
     gray_prev = cv2.cvtColor(image_prev_turn, cv2.COLOR_BGR2GRAY)
@@ -466,9 +490,9 @@ def compare_and_detect(lane, turn, target):
     image_matches = cv2.drawMatches(gray_prev, kp1, gray_curr, kp2, good_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
 
     # Show the matched keypoints
-    plt.imshow(image_matches)
-    plt.title('Feature Matches')
-    plt.show()
+    #plt.imshow(image_matches)
+    #plt.title('Feature Matches')
+    #plt.show()
 
     # Step 3: Extract matched keypoints
     src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
@@ -525,32 +549,35 @@ def compare_and_detect(lane, turn, target):
                         result = {"name": f"{lane}-{turn}",
                                 "lane": lane,
                                 "turn": turn,
-                                "holes": valid_holes
+                                "holes": valid_holes,
+                                "result_text": ""
                                 }
                     
                         results.append(result)
-
-    for result in results:
-        #print(f"loat {result['turn']} ban trung : {len(result['holes'])} phat dan")
-        if (result["turn"] == turn):        
+    result_text = calculate_score(lane, turn, target)
+    for i, result in enumerate(results):
+        if (result["turn"] == turn):
+            results[i]["result_text"] = result_text
+            print(result["result_text"])
             for (x, y, w, h) in result['holes']:
-                area = w*h
-                perimeter = 2*(w+h)
+                #area = w*h
+                #perimeter = 2*(w+h)
                 #print(f"{turn}-{x,y}-{w,h}-{w/h}-{4 * np.pi * area / (perimeter ** 2)}-{area} {perimeter}")
                 cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
                 cv2.putText(image_curr_turn, str(f"{turn,x,y}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
 
     # Step 10: Show the images with bounding boxes and numbers
-    calculate_score(lane, turn, target)
-    
-    (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
-    draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
-    cv2.imshow('Bullet Holes Detected', image_curr_turn)
+    #(a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
+    #draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
+    #cv2.imshow('Bullet Holes Detected', image_curr_turn)
     save_image(image_curr_turn, lane, turn, target)
-    #cv2.imshow('Aligned Before Image', aligned_before)
+    #cv2.imshow('Aligned Before Image', aligned_after)
     #cv2.imshow('Difference Image', diff_image)
-    cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
+    #cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
     
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+    return image_curr_turn, result_text
+if __name__=="__main__":
+    compare_and_detect(1, 1, "BiaSo4")

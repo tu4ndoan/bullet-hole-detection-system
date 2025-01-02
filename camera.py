@@ -27,7 +27,7 @@ class Camera:
         width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         print(f"Resolution: {width}x{height}")
-        cv2.waitKey(1000)
+        cv2.waitKey(2000) # wait 2 sec so the lighting is stable
         ret, frame = self.cap.read()
         if not ret:
             print("Error: Failed to capture frame")

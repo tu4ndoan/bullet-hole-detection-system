@@ -277,45 +277,58 @@ def view_all_camera():
         camera_btn.pack(pady=5)
     print("view all cam")
 
-def show_result():
-    photo1 = photo2 = photo3 = None
-    global num_lane, num_turn
+def show_full_image(lane, turn, target):
+    image1 = image_processing.load_result(lane, turn, target)
+    cv2.imshow("img", image1)
+    cv2.waitKey(0)
+    #cv2.destroyAllWindows()
 
-    for turn in range(num_turn):
-        for lane in range(num_lane):
-            result_dir = f"./HinhAnh/KetQua/DaiBan{lane+1}"
-            
-            if os.path.exists(result_dir):
-                try:
-                    # Load images using Pillow
-                    image1 = Image.open(f"./HinhAnh/KetQua/DaiBan{lane+1}/BiaSo4-{lane+1}-{turn+1}-marked.jpg")
-                    image2 = Image.open(f"./HinhAnh/KetQua/DaiBan{lane+1}/BiaSo10-{lane+1}-{turn+1}-marked.jpg")
-                    image3 = Image.open(f"./HinhAnh/KetQua/DaiBan{lane+1}/BiaSo8-{lane+1}-{turn+1}-marked.jpg")
+def show_result(turn):
+    for target in targets: # moi target hien 1 window, show tat ca cac lane
+        window = tk.Toplevel(root)
+        window.title(f"Ket qua loat {turn}")
+        window.geometry("800x600")
+        canvas = tk.Canvas(window)
+        canvas.pack(side="left", fill="both", expand=True)
 
-                    # Convert the images to a format Tkinter can use
-                    photo1 = ImageTk.PhotoImage(image1)
-                    photo2 = ImageTk.PhotoImage(image2)
-                    photo3 = ImageTk.PhotoImage(image3)
+        scrollbar = ttk.Scrollbar(window, orient="horizontal", command=canvas.xview)
+        scrollbar.pack(side="bottom", fill="x")
+        canvas.configure(xscrollcommand=scrollbar.set)
 
-                    new_window = tk.Toplevel(root)
-                    new_window.title(f"Kết quả bắn loạt {turn+1}")
-                    new_window.geometry("1920x1080")
-                    # Create labels and add them to the window
-                    label1 = tk.Label(new_window, image=photo1)
-                    label1.grid(row=0, column=0)
+        frame = tk.Frame(canvas)
+        canvas.create_window((0,0), window=frame, anchor="nw")
+        images = []
+        for lane in range(1, num_lane+1):
+            result_image, result_text = image_processing.compare_and_detect(lane, turn, target)
+            images.append((result_image, result_text))
+        for result_image, result_text in images:
+            #result_image_resized = result_image.resize((100, 100))
+            result_image_resized = cv2.resize(result_image, (200,200))
+            # Convert the resized NumPy array to a PIL Image
+            result_image_pil = Image.fromarray(cv2.cvtColor(result_image_resized, cv2.COLOR_BGR2RGB))
 
-                    label2 = tk.Label(new_window, image=photo2)
-                    label2.grid(row=0, column=1)
+            # Now you can use the PIL Image object with ImageTk.PhotoImage
+            img = ImageTk.PhotoImage(result_image_pil)
+            # Create a frame for each image and its description
+            img_desc_frame = tk.Frame(frame)
+            img_desc_frame.pack(side="left", padx=10, pady=10)
 
-                    label3 = tk.Label(new_window, image=photo3)
-                    label3.grid(row=0, column=2)
-                    label1.image = photo1
-                    label2.image = photo2
-                    label3.image = photo3
-                except Exception as e:
-                    print(f"Error loading images: {e}")
-                    continue  # Skip to the next iteration if there's an error loading imag
+            # Create a label for the image
+            img_label = tk.Label(img_desc_frame, image=img)
+            img_label.image = img  # Keep a reference to the image to prevent garbage collection
+            img_label.pack()
 
+            # Create a label for the description text
+            desc_label = tk.Label(img_desc_frame, text=result_text)
+            desc_label.pack()
+
+            # Bind the image label to open the full image on click
+            img_label.bind("<Button-1>", lambda event, lane=lane, turn=turn, target=target: show_full_image(lane, turn, target))
+
+        # Update the scrollable region of the canvas
+        canvas.update_idletasks()
+        canvas.config(scrollregion=canvas.bbox("all"))
+    
 def start_shooting():
     if not num_lane > 0:
         messagebox.showerror("Thông báo", "Hãy thêm dải bắn")
@@ -366,9 +379,13 @@ def shooting_turn_complete():
     Complete the current shooting turn and capture an image.
     """
     global num_turn, num_lane
+    # capture the target after each shooting turn
     camera.parallel_capture(camera_objects, num_turn)
     cv2.waitKey(1000)
-    for lane in range (num_lane):
+    # bao bia
+    show_result(num_turn)
+    for lane in range(num_lane):
+        print("called bao bia")
         for target in targets:
             image_processing.compare_and_detect(lane+1, num_turn, target)
 
@@ -400,7 +417,7 @@ add_shooting_turn_btn.pack(padx=10, side="left")
 shooting_turn_complete_btn = tk.Button(root, text="Báo bia", command=shooting_turn_complete)
 shooting_turn_complete_btn.pack(padx=10, side="left")
 
-edit_variables_btn = tk.Button(root, text="Chỉnh sửa tham số", command=open_variable_editor)
+edit_variables_btn = tk.Button(root, text="Mở thư mục Kết Quả", command=open_variable_editor)
 edit_variables_btn.pack(padx=10, side="left")
 
 add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(10))# cho phép nhập max camera

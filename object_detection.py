@@ -52,8 +52,7 @@ def detect_target(image):
     kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
     dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
     linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
-    cv2.imshow("adaptive", thresh_adaptive)
-    cv2.waitKey(0)
+    
     # Find contours in the thresholded image
     contours, _ = cv2.findContours(otsu_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
