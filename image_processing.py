@@ -101,25 +101,8 @@ def get_center_ellipse_parameters(image):
     # Find contours
     contours, _ = cv2.findContours(linked_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     center_ellipse = None
-    # Detect circles using HoughCircles
-    circles = cv2.HoughCircles(
-        linked_edges, 
-        cv2.HOUGH_GRADIENT, 
-        dp=0.1, 
-        minDist=min_dist, 
-        param1=param1, 
-        param2=param2, 
-        minRadius=min_rad, 
-        maxRadius=max_rad
-    )
 
-    # Process detected circles and filter based on size and circularity
-    if circles is not None:
-        circles = np.round(circles[0, :]).astype("int")
-        valid_circles = []
-        holes = []
-        for circle in circles:
-            x, y, r = circle
+    
     # Iterate over the contours and fit ellipses
     for contour in contours:
         if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
@@ -137,12 +120,13 @@ def get_center_ellipse_parameters(image):
 
             # If the aspect ratio is close to 1, it is more likely a perfect circle (or close ellipse)
             
-            if (4000 < cv2.contourArea(contour) < 8000):
-                center_ellipse = ellipse
+            #if (4000 < cv2.contourArea(contour) < 8000):
+             #   center_ellipse = ellipse
                 #print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle}")
                 # Allow for slight variation in a perfect circle
-                cv2.ellipse(image, ellipse, (0, 255, 0), 2)
-                cv2.putText(image, str(int(cv2.contourArea(contour))), (int(h) + 5, int(k) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                #cv2.ellipse(image, ellipse, (0, 255, 0), 2)
+    #cv2.putText(image, str(), (1030, 490), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+    cv2.circle(image, (935, 515), 2, (255,0,0), 2)
     a, b, h, k, angle = 0, 0, 0, 0, 0
     if (center_ellipse):
         (h, k) = center_ellipse[0]
@@ -153,7 +137,7 @@ def get_center_ellipse_parameters(image):
     cv2.imshow("edge", linked_edges)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    return 125, 145, 1030, 490, 90
+    return 125, 145, 935, 515, 90
 
 def draw_debug_elipse(image, a, b, h, k, angle):
     # rotation angle in degrees
@@ -183,7 +167,10 @@ def calculate_score(lane, turn, target):
     
     print(len(holes))
     for (x, y, w, j) in holes:
+        if i >= 3:
+            k += 10*i
         i = i + 1
+        
         if is_hole_inside_ellipse(x,y,h,k,a,b,angle):
             score = 10
         elif is_hole_inside_ellipse(x,y,h,k,2*a,2*b,angle):
@@ -208,8 +195,6 @@ def calculate_score(lane, turn, target):
             score = 0
             continue
         
-        #if turn == 1:
-        #    score = score -1
         result = f"\n Phát {i}: {score} điểm"
         message = message + result
         total_score = total_score + score
@@ -568,16 +553,16 @@ def compare_and_detect(lane, turn, target):
 
 
     # Step 10: Show the images with bounding boxes and numbers
-    #(a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
-    #draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
-    #cv2.imshow('Bullet Holes Detected', image_curr_turn)
+    (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
+    draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
+    cv2.imshow('Bullet Holes Detected', image_curr_turn)
     save_image(image_curr_turn, lane, turn, target)
     #cv2.imshow('Aligned Before Image', aligned_after)
     #cv2.imshow('Difference Image', diff_image)
     #cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
     
-    #cv2.waitKey(0)
-    #cv2.destroyAllWindows()
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     return image_curr_turn, result_text
 if __name__=="__main__":
     compare_and_detect(1, 1, "BiaSo4")
