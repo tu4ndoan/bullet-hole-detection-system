@@ -1,12 +1,13 @@
 - đối với bia số 4: camera set như hiện tại, cách bia 80 - 100cm, góc nghiêng 30 độ, cao ngang giữa chân bia 
 thông số là:
+thresh_diff = 50
 is hole exist check < 50
-w and h of hole 6 to 45
-area 30 to 1000
+10 < w < 45 and 10 < h < 35: 
+100 < area < 500
 center ellipse 125, 145, 935, 515, 90
-if i >= 3:
-    k += 10*i
-
+k += 10*i (tam ellipse)
+a,b cung phai bien thien theo i
 khi tripod về sẽ moderate lại các tham số bia số 4
 và tìm tham số đối với bia số 7
 thêm các hàm xử lý base on loại bia 
+fix nhap lane

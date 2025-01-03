@@ -22,20 +22,19 @@ num_lane = len(notebook.tabs())
 num_turn = 1
 
 # Image preprocessing variables
-blur_value = 1
+blur_value = 5
 adaptive_thresh_value = 1
 binary_thresh_value = 1
 edge_lower_value = 1
 edge_higher_value = 1
 
-# Hough circles variables
-dp_value = 1
-min_dist_value = 1
-param1 = 1
-param2 = 1
-min_radius = 1
-max_radius = 1
-camera_to_target_distance = 1
+# detect bullet hole variables - Bia So 4 - with basic setup cọc mắc màn
+thresh_value = 50
+min_h_w = 10
+max_h_w = 35
+min_bullet_hole_area = 100
+max_bullet_hole_area = 500
+hole_to_hole_distance = 50
 
 # Dictionary to store detected cameras
 camera_detected = []
@@ -45,7 +44,6 @@ targets = [] #lets make the user input this
 # Function to update global variables
 def update_variables():
     global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
-    global dp_value, min_dist_value, param1, param2, min_radius, max_radius, camera_to_target_distance
     
     blur_value = blur_slider.get()
     adaptive_thresh_value = adaptive_thresh_slider.get()
@@ -53,19 +51,9 @@ def update_variables():
     edge_lower_value = edge_lower_slider.get()
     edge_higher_value = edge_higher_slider.get()
     
-    dp_value = dp_slider.get()
-    min_dist_value = min_dist_slider.get()
-    param1 = param1_slider.get()
-    param2 = param2_slider.get()
-    min_radius = min_radius_slider.get()
-    max_radius = max_radius_slider.get()
-    camera_to_target_distance = camera_distance_slider.get()
-    
     # Update the result label to display the updated values
     result_label.config(text=f"Updated Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                            f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n"
-                            f"DP: {dp_value}\nMin Dist: {min_dist_value}\nParam1: {param1}\nParam2: {param2}\n"
-                            f"Min Radius: {min_radius}\nMax Radius: {max_radius}\nCamera Distance: {camera_to_target_distance}")
+                            f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
 
 # Create a new Toplevel window to edit variables
 def open_variable_editor():
@@ -117,51 +105,13 @@ def open_variable_editor():
     edge_higher_slider.set(edge_higher_value)
     edge_higher_slider.pack(pady=5)
 
-    # Hough Circles Variables
-    ttk.Label(canvas_frame, text="DP Value:").pack(pady=5)
-    dp_slider = tk.Scale(canvas_frame, from_=0.1, to=2, orient="horizontal", resolution=0.1)
-    dp_slider.set(dp_value)
-    dp_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Min Distance:").pack(pady=5)
-    min_dist_slider = tk.Scale(canvas_frame, from_=1, to=100, orient="horizontal")
-    min_dist_slider.set(min_dist_value)
-    min_dist_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Param1 Value:").pack(pady=5)
-    param1_slider = tk.Scale(canvas_frame, from_=1, to=200, orient="horizontal")
-    param1_slider.set(param1)
-    param1_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Param2 Value:").pack(pady=5)
-    param2_slider = tk.Scale(canvas_frame, from_=1, to=200, orient="horizontal")
-    param2_slider.set(param2)
-    param2_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Min Radius:").pack(pady=5)
-    min_radius_slider = tk.Scale(canvas_frame, from_=1, to=100, orient="horizontal")
-    min_radius_slider.set(min_radius)
-    min_radius_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Max Radius:").pack(pady=5)
-    max_radius_slider = tk.Scale(canvas_frame, from_=1, to=100, orient="horizontal")
-    max_radius_slider.set(max_radius)
-    max_radius_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Camera to Target Distance:").pack(pady=5)
-    camera_distance_slider = tk.Scale(canvas_frame, from_=0.1, to=100, orient="horizontal", resolution=0.1)
-    camera_distance_slider.set(camera_to_target_distance)
-    camera_distance_slider.pack(pady=5)
-
     # Apply Button
     apply_button = ttk.Button(canvas_frame, text="Apply Variables", command=update_variables)
     apply_button.pack(pady=20)
 
     # Label to show updated values
     result_label = ttk.Label(canvas_frame, text=f"Current Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                                               f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n"
-                                               f"DP: {dp_value}\nMin Dist: {min_dist_value}\nParam1: {param1}\nParam2: {param2}\n"
-                                               f"Min Radius: {min_radius}\nMax Radius: {max_radius}\nCamera Distance: {camera_to_target_distance}")
+                                               f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
     result_label.pack(pady=10)
 
     # Update scroll region whenever the content changes
@@ -361,6 +311,9 @@ def add_shooting_lane():
     notebook.add(shooting_lane, text=f"Dải bắn {num_lane}")
     label = tk.Label(shooting_lane, text=f"Dải bắn {num_lane}")
     label.pack(pady=20)
+
+def remove_shooting_lane(lane_num):
+    print("")
 
 def add_shooting_turn():
     """

@@ -6,12 +6,13 @@ from tkinter import messagebox
 import object_detection
 import math
 import matplotlib.pyplot as plt
+import os
+import camera
 
 
 # tham so
 array = []
 results = []
-result_texts = []
 #
 def load_image(lane, turn, target):
     image = cv2.imread(f'./HinhAnh/DaiBan{lane}/{target}-{lane}-{turn}.jpg', 1)
@@ -22,8 +23,12 @@ def load_result(lane, turn, target):
     return result
 
 def save_image(image, lane, turn, target):
-    print(lane, turn, target)
-    #TODO:check dir exist and create
+    lane_dir = f"./HinhAnh/DaiBan{lane+1}"
+    result_dir = f"./HinhAnh/KetQua/DaiBan{lane+1}"
+    if not os.path.exists(lane_dir):
+        os.makedirs(lane_dir)
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
     cv2.imwrite(f"./HinhAnh/KetQua/DaiBan{lane}/{target}-{lane}-{turn}-marked.jpg", image)
 
 def is_hole_inside_ellipse(x, y, h, k, a, b, angle):
@@ -53,56 +58,21 @@ def get_bullet_holes(lane, turn):
 
 def get_center_ellipse_parameters(image):
     # Convert to grayscale
-    cropped_target, target_masked, target_mask = object_detection.detect_target(image)
-    zoomed = object_detection.zoom_in(cropped_target, 1)
-    #cv2.imshow("zoom", zoomed)
-    #cv2.waitKey(0)
-
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
-    # Histogram Equalization to improve contrast
-    gray_equalized = cv2.equalizeHist(gray)
-    
-    # Apply Gaussian Blur to smooth lighting variations
-    gray_blurred = cv2.GaussianBlur(gray_equalized, (15, 15), 0)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    # Apply CLAHE to the image
-    clahe_image = clahe.apply(gray_blurred)
-    # Adaptive thresholding to account for varying lighting conditions
-    thresh_adaptive = cv2.adaptiveThreshold(
-        gray_blurred, 
-        255, 
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        cv2.THRESH_BINARY, 
-        11, 
-        2
-    )
-    
-   
-    # Further binary thresholding if needed
-    #ret, inv_thresh = cv2.threshold(gray_blurred, 150, 255, cv2.THRESH_BINARY_INV)
-    #_, thresh = cv2.threshold(gray_blurred, 200, 255, cv2.THRESH_BINARY)
-    #ret, trunc_thresh = cv2.threshold(clahe_image, 55, 255, cv2.THRESH_TRUNC)
-    ret, otsu_thresh = cv2.threshold(thresh_adaptive, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # Apply GaussianBlur to reduce noise and improve edge detection
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    adaptive_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
-
-    # Edge detection with dynamic thresholds
-    median_intensity = np.median(gray_blurred)
-    lower_thresh = max(0, median_intensity - 50)
-    upper_thresh = min(255, median_intensity + 150)
-    edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
-    
-    
-    # Apply dilation and erosion to link fragmented edges
-    kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
-    dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
-    linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
+    # Use edge detection (Canny)
+    edges = cv2.Canny(adaptive_thresh, 50, 150)
 
     # Find contours
-    contours, _ = cv2.findContours(linked_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    center_ellipse = None
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    
+    center_ellipse = None
+    ellipses = []
+    min_aspect_ratio = float("inf")
     # Iterate over the contours and fit ellipses
     for contour in contours:
         if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
@@ -118,26 +88,43 @@ def get_center_ellipse_parameters(image):
                 # Compute the aspect ratio (major axis / minor axis) to check if it's "perfect"
                 aspect_ratio = max(axes) / min(axes)
 
-            # If the aspect ratio is close to 1, it is more likely a perfect circle (or close ellipse)
-            
-            #if (4000 < cv2.contourArea(contour) < 8000):
-             #   center_ellipse = ellipse
-                #print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle}")
+            # 2-nd ellipse
+            if 1.1 < aspect_ratio < 1.2 and 800000 < area < 1000000 and 80 < angle < 100:
+                if aspect_ratio < min_aspect_ratio:
+                    min_aspect_ratio = aspect_ratio
+                    center_ellipse = ellipse
+                print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
                 # Allow for slight variation in a perfect circle
-                #cv2.ellipse(image, ellipse, (0, 255, 0), 2)
-    #cv2.putText(image, str(), (1030, 490), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-    cv2.circle(image, (935, 515), 2, (255,0,0), 2)
     a, b, h, k, angle = 0, 0, 0, 0, 0
     if (center_ellipse):
         (h, k) = center_ellipse[0]
         (a, b) = center_ellipse[1]
         angle = center_ellipse[2]
+    a=a//4
+    b=b//4
+    k=k
+    print(int(a), int(b), int(h), int(k), int(angle))
+    #cv2.ellipse(image, center_ellipse, (0, 255, 0), 2)         
+    cv2.putText(image, str(area), (int(h+ 10), int(k+20)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+    cv2.circle(image, (int(h), int(k)), 2, (0,0,255), 2)
+    # TODO: now find a and b h k, not a(2) b(2) h(2) k(2)
+    for i in range(1,6):
+    # Draw the ellipse on the image
+        if i==1:
+            k -= 8*i
+            a += 0.4*i
+        if i>=3:
+            k += 8*i
+            a -= 0.5*i
+            
+        cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, 0, 360, (0, 255, 0), 2)
+        cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
     #draw_debug_elipse(image, 125, 145, 880, 495, 90)
     cv2.imshow("elipse", image)
-    cv2.imshow("edge", linked_edges)
+    cv2.imshow("edge", edges)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    return 125, 145, 935, 515, 90
+    return int(a), int(b), int(h), int(k), int(angle)
 
 def draw_debug_elipse(image, a, b, h, k, angle):
     # rotation angle in degrees
@@ -145,8 +132,9 @@ def draw_debug_elipse(image, a, b, h, k, angle):
     end_angle = 360  # ending angle of the arc (full ellipse)
     for i in range(1,11):
     # Draw the ellipse on the image
-        if i >= 3:
-            k += 10*i
+        k += 8*i
+        a -= 2*i
+        #b += i
         cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
         cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
 
@@ -165,10 +153,8 @@ def calculate_score(lane, turn, target):
     i = 0
     message = f"Loạt {turn}, bệ số {lane}:"
     
-    print(len(holes))
     for (x, y, w, j) in holes:
-        if i >= 3:
-            k += 10*i
+        k += 5*i
         i = i + 1
         
         if is_hole_inside_ellipse(x,y,h,k,a,b,angle):
@@ -206,23 +192,6 @@ def calculate_score(lane, turn, target):
     messagebox.showinfo("Báo bia", message)
     # return diem tong
     return message
-
-def on_image_click(event, canvas, img, text_entries, lane, turn, target):
-    image = cv2.imread(f"./Images/Result/Lane{lane}/{target}-{lane}-{turn}-marked.jpg")
-    x, y = event.x, event.y
-    print(x,y)
-    hole = (x,y,1)
-    # add pos x y to array
-    array.append((x,y))
-    for result in results:
-        if result["name"] == f"{lane}-{turn}":
-            result["holes"].append(hole)
-            
-    for (x,y) in array:
-        cv2.putText(img, "text", (x, y), 1, 1, (255, 0, 0), 1)
-
-    #save_image(image, lane, turn, target)
-    calculate_score(lane, turn)
 
 def is_hole_already_exist(x, y, w, h):
     for result in results:
@@ -413,36 +382,36 @@ def preprocess_image(image):
     gray_equalized = cv2.equalizeHist(gray)
     
     # Apply Gaussian Blur to smooth lighting variations
-    gray_blurred = cv2.GaussianBlur(gray_equalized, (5, 5), 0)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray_blurred = cv2.GaussianBlur(gray_equalized, (15, 15), 0)
+    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     # Apply CLAHE to the image
-    clahe_image = clahe.apply(gray_blurred)
+    #clahe_image = clahe.apply(gray_blurred)
     # Adaptive thresholding to account for varying lighting conditions
     thresh_adaptive = cv2.adaptiveThreshold(
-        clahe_image, 
+        gray_blurred, 
         255, 
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.ADAPTIVE_THRESH_MEAN_C, 
         cv2.THRESH_BINARY, 
         11, 
         2
     )
-    # Further thresholding
-    ret, otsu_thresh = cv2.threshold(thresh_adaptive, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
 
 
     # Edge detection with dynamic thresholds
     median_intensity = np.median(gray_blurred)
     lower_thresh = max(0, median_intensity - 150)
     upper_thresh = min(255, median_intensity + 150)
-    edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
+    edges = cv2.Canny(thresh_adaptive, threshold1=lower_thresh, threshold2=upper_thresh)
     
     
     # Apply dilation and erosion to link fragmented edges
     kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
     dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
     linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
-
-    return linked_edges
+# Further thresholding
+    ret, otsu_thresh = cv2.threshold(linked_edges, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return otsu_thresh
 
 def compare_and_detect(lane, turn, target):
     print(f"compare and detect {lane} {turn} {target}")
@@ -494,8 +463,9 @@ def compare_and_detect(lane, turn, target):
     aligned_after = cv2.warpPerspective(gray_curr, M_inv, (width, height))
 
     # Step 6: Calculate the absolute difference between the images
-    diff_image = cv2.absdiff(gray_prev, aligned_after)
+    diff_image = cv2.absdiff(aligned_after, gray_prev)
 
+    #adaptive_thresh = cv2.adaptiveThreshold(diff_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     # Step 7: Threshold the difference image to highlight changes
     _, thresh_diff = cv2.threshold(diff_image, 50, 255, cv2.THRESH_BINARY)
 
@@ -518,17 +488,16 @@ def compare_and_detect(lane, turn, target):
         # Calculate circularity
         circularity = 4 * np.pi * area / (perimeter ** 2)
             
-        # Condition 1: Aspect ratio should not be too close to 1 (avoid squares and circles)
-        # Condition 2: Circularity should not be too close to 1 (avoid circles)
         #if 0.1 < aspect_ratio < 2:  # aspect ratio threshold for elongated shapes
         #    if 0.1 < circularity < 2:
         if True:
-            if 6 < w < 45 and 6 < h < 45:
-                if 30 < area<1000: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
+            if 10 < w < 45 and 10 < h < 35: 
+                if 100 < area < 500: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
                     print(area, x, y, w, h)
                     filtered_contours.append(contour)
                     x, y, w, h = cv2.boundingRect(contour)
-                    if not is_hole_already_exist(x, y, w, h):
+                    #if not is_hole_already_exist(x, y, w, h):
+                    if True:
                         valid_holes.append((x, y, w, h))
                         #cv2.putText(image_curr_turn, str(f"{area}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
                         result = {"name": f"{lane}-{turn}",
@@ -543,26 +512,33 @@ def compare_and_detect(lane, turn, target):
     for i, result in enumerate(results):
         if (result["turn"] == turn):
             results[i]["result_text"] = result_text
-            print(result["result_text"])
+            #print(result["result_text"])
             for (x, y, w, h) in result['holes']:
                 #area = w*h
                 #perimeter = 2*(w+h)
                 #print(f"{turn}-{x,y}-{w,h}-{w/h}-{4 * np.pi * area / (perimeter ** 2)}-{area} {perimeter}")
-                cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                cv2.putText(image_curr_turn, str(f"{turn,x,y}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.rectangle(aligned_after, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                cv2.putText(aligned_after, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
 
     # Step 10: Show the images with bounding boxes and numbers
-    (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
-    draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
-    cv2.imshow('Bullet Holes Detected', image_curr_turn)
-    save_image(image_curr_turn, lane, turn, target)
-    #cv2.imshow('Aligned Before Image', aligned_after)
-    #cv2.imshow('Difference Image', diff_image)
-    #cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
+    (a, b, h, k, angle) = get_center_ellipse_parameters(aligned_after)
+    draw_debug_elipse(aligned_after,a, b, h, k, angle)
+    cv2.imshow('Bullet Holes Detected', aligned_after)
+    save_image(aligned_after, lane, turn, target)
+    cv2.imshow('Aligned Before Image', image_prev_turn)
+    cv2.imshow('Difference Image', diff_image)
+    cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
     
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     return image_curr_turn, result_text
+
+
 if __name__=="__main__":
-    compare_and_detect(1, 1, "BiaSo4")
+    cam = camera.Camera(1,"BiaSo4", 1)
+    #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4-1-2.jpg")
+    img = cam.capture_image(10)
+    save_image(img,1,10,"BiaSo4")
+    #compare_and_detect(1, 3, "BiaSo4")
+    get_center_ellipse_parameters(img)
