@@ -1,4 +1,3 @@
-# TIỂU ĐOÀN 1038 . LỮ ĐOÀN 957
 # Phần mềm báo bia tự động bằng Computer Vision
 
 # "computer vision là gì?"
