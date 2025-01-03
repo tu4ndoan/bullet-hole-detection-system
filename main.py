@@ -20,120 +20,13 @@ label = ttk.Frame(notebook)
 # Variables
 num_lane = len(notebook.tabs())
 num_turn = 1
-
-# Image preprocessing variables
-blur_value = 5
-adaptive_thresh_value = 1
-binary_thresh_value = 1
-edge_lower_value = 1
-edge_higher_value = 1
+max_camera = 10
 
 # Dictionary to store detected cameras
 camera_detected = []
 camera_objects = []
 targets = [] #lets make the user input this
 
-# Function to update global variables
-def update_variables():
-    global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
-    
-    blur_value = blur_slider.get()
-    adaptive_thresh_value = adaptive_thresh_slider.get()
-    binary_thresh_value = binary_thresh_slider.get()
-    edge_lower_value = edge_lower_slider.get()
-    edge_higher_value = edge_higher_slider.get()
-    
-    # Update the result label to display the updated values
-    result_label.config(text=f"Updated Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                            f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
-
-# Create a new Toplevel window to edit variables
-def open_variable_editor():
-    global blur_slider, adaptive_thresh_slider, binary_thresh_slider, edge_lower_slider, edge_higher_slider
-    global dp_slider, min_dist_slider, param1_slider, param2_slider, min_radius_slider, max_radius_slider, camera_distance_slider, result_label
-    
-    # Create a new Toplevel window
-    top = tk.Toplevel()
-    top.title("Global Variables Editor")
-    
-    # Create a canvas widget
-    canvas = tk.Canvas(top)
-    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    # Create a scrollbar widget
-    scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
-    scrollbar.pack(side=tk.RIGHT, fill="y")
-
-    # Configure the canvas to work with the scrollbar
-    canvas.configure(yscrollcommand=scrollbar.set)
-    
-    # Create a frame inside the canvas to contain all widgets
-    canvas_frame = ttk.Frame(canvas)
-    canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
-
-    # Add all the sliders (trackbars) inside this frame
-    ttk.Label(canvas_frame, text="Blur Value:").pack(pady=5)
-    blur_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
-    blur_slider.set(blur_value)
-    blur_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Adaptive Threshold Value:").pack(pady=5)
-    adaptive_thresh_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
-    adaptive_thresh_slider.set(adaptive_thresh_value)
-    adaptive_thresh_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Binary Threshold Value:").pack(pady=5)
-    binary_thresh_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    binary_thresh_slider.set(binary_thresh_value)
-    binary_thresh_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Edge Lower Value:").pack(pady=5)
-    edge_lower_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    edge_lower_slider.set(edge_lower_value)
-    edge_lower_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Edge Higher Value:").pack(pady=5)
-    edge_higher_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    edge_higher_slider.set(edge_higher_value)
-    edge_higher_slider.pack(pady=5)
-
-    # Apply Button
-    apply_button = ttk.Button(canvas_frame, text="Apply Variables", command=update_variables)
-    apply_button.pack(pady=20)
-
-    # Label to show updated values
-    result_label = ttk.Label(canvas_frame, text=f"Current Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                                               f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
-    result_label.pack(pady=10)
-
-    # Update scroll region whenever the content changes
-    canvas_frame.update_idletasks()
-    canvas.config(scrollregion=canvas.bbox("all"))
-
-    top.geometry("350x600")
-
-# Function to detect the USB cameras in a separate thread
-def detect_cameras_thread():
-    """global camera_detected
-    max_cameras = 30  # Assuming we want to check for 5 possible camera indices (0-4)
-
-    while True:
-        for camera_id in range(1, max_cameras):
-            if (camera_id in camera_detected):
-                print("camera added")
-                continue
-            else:
-                cap = cv2.VideoCapture(camera_id)
-                if cap.isOpened():
-                    camera_detected[camera_id] = True
-                    check_camera_and_open_editor(camera_id)
-                    cap.release()  # Close the camera after detection
-                else:
-                    if camera_id in camera_detected:
-                        print("camera exist")
-                        #del camera_detected[camera_id]  # Remove if the camera was previously detected and is no longer available
-        time.sleep(1)"""
-    print("called")
 
 # Function to create and store the Camera object based on user input
 def create_camera_object(camera_id, lane, target):
@@ -167,12 +60,12 @@ def open_variable_editor(camera_id):
     top.title(f"Camera số {camera_id}")
 
     # Create the option menu with the predefined values
-    bia_options = ["BiaSo4", "BiaSo8", "BiaSo10"]
+    bia_options = ["BiaSo4", "BiaSo7", "BiaSo10"]
     bia_menu = tk.OptionMenu(top, bia_var, *bia_options)
     bia_menu.pack(pady=5)
-    ttk.Label(top, text="Lane:").pack(pady=5)
+    ttk.Label(top, text="Dải số:").pack(pady=5)
     lane_entry = ttk.Entry(top)
-    lane_entry.insert(0, "Enter Lane")  # Default value
+    lane_entry.insert(0, "1")  # Default value
     lane_entry.pack(pady=5)
     
     # Create the "Apply and Close" button
@@ -196,7 +89,6 @@ def check_camera_and_open_editor(max_camera):
                 else:
                     detection_label.config(text=f"Đã nhập {len(camera_detected)} camera")                
     
-
 
 def view_camera(camera_id):
     print(camera_id)
@@ -316,9 +208,6 @@ def add_shooting_turn():
     
     messagebox.showinfo("Thông báo", f"Đã thêm 1 Loạt bắn, tổng cộng {num_turn} loạt bắn")
 
-def review_result(img, lane, turn, target):
-    print("review result")
-
 def shooting_turn_complete():
     """
     Complete the current shooting turn and capture an image.
@@ -362,10 +251,10 @@ add_shooting_turn_btn.pack(padx=10, side="left")
 shooting_turn_complete_btn = tk.Button(root, text="Báo bia", command=shooting_turn_complete)
 shooting_turn_complete_btn.pack(padx=10, side="left")
 
-edit_variables_btn = tk.Button(root, text="Mở thư mục Kết Quả", command=open_variable_editor)
-edit_variables_btn.pack(padx=10, side="left")
+#edit_variables_btn = tk.Button(root, text="Mở thư mục Kết Quả", command=open_variable_editor)
+#edit_variables_btn.pack(padx=10, side="left")
 
-add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(10))# cho phép nhập max camera
+add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(max_camera))# cho phép nhập max camera
 add_camera_btn.pack(padx=10, side="left")
 
 check_camera_btn = tk.Button(root, text="Kiểm tra camera", command=view_all_camera)

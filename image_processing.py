@@ -8,6 +8,7 @@ import math
 import matplotlib.pyplot as plt
 import os
 import camera
+from tkinter import ttk
 
 
 # tham so
@@ -28,7 +29,7 @@ min_ellipse_area = 800000
 max_ellipse_area = 1000000
 min_angle = 80
 max_angle = 100
-
+# params
 def load_target_params(target):
     if target == "BiaSo4":
         # bullet detection params
@@ -55,7 +56,84 @@ def load_target_params(target):
 
     elif target == "BiaSo7":
         pass
+
+def update_variables():
+    global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
     
+    blur_value = blur_slider.get()
+    adaptive_thresh_value = adaptive_thresh_slider.get()
+    binary_thresh_value = binary_thresh_slider.get()
+    edge_lower_value = edge_lower_slider.get()
+    edge_higher_value = edge_higher_slider.get()
+    
+    # Update the result label to display the updated values
+    result_label.config(text=f"Updated Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
+                            f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
+
+# Create a new Toplevel window to edit variables
+def open_variable_editor():
+    global blur_slider, adaptive_thresh_slider, binary_thresh_slider, edge_lower_slider, edge_higher_slider, result_label
+    
+    # Create a new Toplevel window
+    top = tk.Toplevel()
+    top.title("Global Variables Editor")
+    
+    # Create a canvas widget
+    canvas = tk.Canvas(top)
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    # Create a scrollbar widget
+    scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
+    scrollbar.pack(side=tk.RIGHT, fill="y")
+
+    # Configure the canvas to work with the scrollbar
+    canvas.configure(yscrollcommand=scrollbar.set)
+    
+    # Create a frame inside the canvas to contain all widgets
+    canvas_frame = ttk.Frame(canvas)
+    canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
+
+    # Add all the sliders (trackbars) inside this frame
+    ttk.Label(canvas_frame, text="Blur Value:").pack(pady=5)
+    blur_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
+    blur_slider.set(blur_value)
+    blur_slider.pack(pady=5)
+
+    ttk.Label(canvas_frame, text="Adaptive Threshold Value:").pack(pady=5)
+    adaptive_thresh_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
+    adaptive_thresh_slider.set(adaptive_thresh_value)
+    adaptive_thresh_slider.pack(pady=5)
+
+    ttk.Label(canvas_frame, text="Binary Threshold Value:").pack(pady=5)
+    binary_thresh_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
+    binary_thresh_slider.set(binary_thresh_value)
+    binary_thresh_slider.pack(pady=5)
+
+    ttk.Label(canvas_frame, text="Edge Lower Value:").pack(pady=5)
+    edge_lower_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
+    edge_lower_slider.set(edge_lower_value)
+    edge_lower_slider.pack(pady=5)
+
+    ttk.Label(canvas_frame, text="Edge Higher Value:").pack(pady=5)
+    edge_higher_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
+    edge_higher_slider.set(edge_higher_value)
+    edge_higher_slider.pack(pady=5)
+
+    # Apply Button
+    apply_button = ttk.Button(canvas_frame, text="Apply Variables", command=update_variables)
+    apply_button.pack(pady=20)
+
+    # Label to show updated values
+    result_label = ttk.Label(canvas_frame, text=f"Current Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
+                                               f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
+    result_label.pack(pady=10)
+
+    # Update scroll region whenever the content changes
+    canvas_frame.update_idletasks()
+    canvas.config(scrollregion=canvas.bbox("all"))
+
+    top.geometry("350x600")
+
 # image load/save
 def load_image(lane, turn, target):
     image = cv2.imread(f'./HinhAnh/DaiBan{lane}/{target}-{lane}-{turn}.jpg', 1)
