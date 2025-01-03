@@ -28,14 +28,6 @@ binary_thresh_value = 1
 edge_lower_value = 1
 edge_higher_value = 1
 
-# detect bullet hole variables - Bia So 4 - with basic setup cọc mắc màn
-thresh_value = 50
-min_h_w = 10
-max_h_w = 35
-min_bullet_hole_area = 100
-max_bullet_hole_area = 500
-hole_to_hole_distance = 50
-
 # Dictionary to store detected cameras
 camera_detected = []
 camera_objects = []

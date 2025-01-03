@@ -13,7 +13,50 @@ import camera
 # tham so
 array = []
 results = []
-#
+
+# detect bullet hole params - Bia So 4 - with basic setup cọc mắc màn TODO: define set up voi tripod
+thresh_value = 50
+min_h_w = 6
+max_h_w = 35
+min_bullet_hole_area = 30
+max_bullet_hole_area = 500
+hole_to_hole_distance = 50
+# ellipse detection params
+min_ratio = 1.1
+max_ratio = 1.2
+min_ellipse_area = 800000
+max_ellipse_area = 1000000
+min_angle = 80
+max_angle = 100
+
+def load_target_params(target):
+    if target == "BiaSo4":
+        # bullet detection params
+        thresh_value = 50
+
+        min_h_w = 6
+        max_h_w = 35
+
+        min_bullet_hole_area = 30
+        max_bullet_hole_area = 500
+
+        hole_to_hole_distance = 50
+
+        # ellipse detection params
+        # BiaSo4 has a close to perfect circle ellipse center
+        min_ratio = 1.1
+        max_ratio = 1.2
+
+        min_ellipse_area = 800000
+        max_ellipse_area = 1000000
+
+        min_angle = 80
+        max_angle = 100
+
+    elif target == "BiaSo7":
+        pass
+    
+# image load/save
 def load_image(lane, turn, target):
     image = cv2.imread(f'./HinhAnh/DaiBan{lane}/{target}-{lane}-{turn}.jpg', 1)
     return image
@@ -31,10 +74,10 @@ def save_image(image, lane, turn, target):
         os.makedirs(result_dir)
     cv2.imwrite(f"./HinhAnh/KetQua/DaiBan{lane}/{target}-{lane}-{turn}-marked.jpg", image)
 
+# check functions
 def is_hole_inside_ellipse(x, y, h, k, a, b, angle):
     # Convert angle to radians
     angle_rad = math.radians(angle)
-    print(x,y)
     
     # Translate the point to the ellipse's center (if necessary)
     x_translated = x - h
@@ -51,148 +94,6 @@ def is_hole_inside_ellipse(x, y, h, k, a, b, angle):
     else:
         return False
 
-def get_bullet_holes(lane, turn):
-    for result in results:
-        if result["name"] == f"{lane}-{turn}":
-            return result["holes"]
-
-def get_center_ellipse_parameters(image):
-    # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Apply GaussianBlur to reduce noise and improve edge detection
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    adaptive_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-
-    # Use edge detection (Canny)
-    edges = cv2.Canny(adaptive_thresh, 50, 150)
-
-    # Find contours
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    center_ellipse = None
-    ellipses = []
-    min_aspect_ratio = float("inf")
-    # Iterate over the contours and fit ellipses
-    for contour in contours:
-        if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
-            # Fit an ellipse to the contour
-            ellipse = cv2.fitEllipse(contour)
-            (h, k) = ellipse[0]
-            (a, b) = ellipse[1]
-            # Extract ellipse parameters (center, axes, angle)
-            center, axes, angle = ellipse
-            area = np.pi * a * b
-            aspect_ratio = 0
-            if (min(axes) != 0):
-                # Compute the aspect ratio (major axis / minor axis) to check if it's "perfect"
-                aspect_ratio = max(axes) / min(axes)
-
-            # 2-nd ellipse
-            if 1.1 < aspect_ratio < 1.2 and 800000 < area < 1000000 and 80 < angle < 100:
-                if aspect_ratio < min_aspect_ratio:
-                    min_aspect_ratio = aspect_ratio
-                    center_ellipse = ellipse
-                print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
-                # Allow for slight variation in a perfect circle
-    a, b, h, k, angle = 0, 0, 0, 0, 0
-    if (center_ellipse):
-        (h, k) = center_ellipse[0]
-        (a, b) = center_ellipse[1]
-        angle = center_ellipse[2]
-    a=a//4
-    b=b//4
-    k=k
-    print(int(a), int(b), int(h), int(k), int(angle))
-    #cv2.ellipse(image, center_ellipse, (0, 255, 0), 2)         
-    cv2.putText(image, str(area), (int(h+ 10), int(k+20)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-    cv2.circle(image, (int(h), int(k)), 2, (0,0,255), 2)
-    # TODO: now find a and b h k, not a(2) b(2) h(2) k(2)
-    for i in range(1,6):
-    # Draw the ellipse on the image
-        if i==1:
-            k -= 8*i
-            a += 0.4*i
-        if i>=3:
-            k += 8*i
-            a -= 0.5*i
-            
-        cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, 0, 360, (0, 255, 0), 2)
-        cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
-    #draw_debug_elipse(image, 125, 145, 880, 495, 90)
-    cv2.imshow("elipse", image)
-    cv2.imshow("edge", edges)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    return int(a), int(b), int(h), int(k), int(angle)
-
-def draw_debug_elipse(image, a, b, h, k, angle):
-    # rotation angle in degrees
-    start_angle = 0  # starting angle of the arc
-    end_angle = 360  # ending angle of the arc (full ellipse)
-    for i in range(1,11):
-    # Draw the ellipse on the image
-        k += 8*i
-        a -= 2*i
-        #b += i
-        cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
-        cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
-
-def calculate_score(lane, turn, target):
-    # get the bullet holes from lane, turn, target
-    holes = get_bullet_holes(lane, turn)
-    if holes == None:
-        return
-    image = load_image(lane, turn, target)
-    if not image.any(): # load image fail
-        return
-    (a,b,h,k,angle) = get_center_ellipse_parameters(image)
-    total_score = 0
-    score = 0
-    scores = []
-    i = 0
-    message = f"Loạt {turn}, bệ số {lane}:"
-    
-    for (x, y, w, j) in holes:
-        k += 5*i
-        i = i + 1
-        
-        if is_hole_inside_ellipse(x,y,h,k,a,b,angle):
-            score = 10
-        elif is_hole_inside_ellipse(x,y,h,k,2*a,2*b,angle):
-            score = 9
-        elif is_hole_inside_ellipse(x,y,h,k,3*a,3*b,angle):
-            score = 8
-        elif is_hole_inside_ellipse(x,y,h,k,4*a,4*b,angle):
-            score = 7
-        elif is_hole_inside_ellipse(x,y,h,k,5*a,5*b,angle):
-            score = 6
-        elif is_hole_inside_ellipse(x,y,h,k,6*a,6*b,angle):
-            score = 5
-        elif is_hole_inside_ellipse(x,y,h,k,7*a,7*b,angle):
-            score = 4
-        elif is_hole_inside_ellipse(x,y,h,k,8*a,8*b,angle):
-            score = 3
-        elif is_hole_inside_ellipse(x,y,h,k,9*a,9*b,angle):
-            score = 2
-        elif is_hole_inside_ellipse(x,y,h,k,10*a,10*b,angle):
-            score = 1
-        else:
-            score = 0
-            continue
-        
-        result = f"\n Phát {i}: {score} điểm"
-        message = message + result
-        total_score = total_score + score
-        scores.append(score)
-        print(f"phat dan thu {i}: {score} diem")
-    print(f"tong so diem: {total_score} diem")
-    
-    message = message + f"\n Tổng: {total_score} điểm"
-    messagebox.showinfo("Báo bia", message)
-    # return diem tong
-    return message
-
 def is_hole_already_exist(x, y, w, h):
     for result in results:
         for i, hole in enumerate(result["holes"]):  # Use enumerate to get the index
@@ -203,45 +104,16 @@ def is_hole_already_exist(x, y, w, h):
 
             # Calculate Euclidean distance
             distance = np.linalg.norm(hole2 - hole1)
-            if distance < 50:
+            if distance < hole_to_hole_distance:
                 if (w*h >= c*d):
                     # Hole exists, update the hole
-                    print("Hole exists, updating the hole value.")
                     result["holes"][i] = (x, y, w, h)  # Update the hole at index i
                     return True
                 else:
-                    print("hole smaller")
                     return True
     return False
 
-def draw_debug(image, x,y,r, turn):
-    #draw bounding box
-    top_left = (x - r, y - r)
-    bottom_right = (x + r, y + r)
-    cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 1)
-    # draw turn number
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.5
-    color = (0, 0, 255)
-    thickness = 2
-    cv2.putText(image, str(turn), (x - 2 * r // 3, y + 2 * r // 3), font, font_scale, color, thickness)
-
 def circularity_check(image,x, y, r):
-    """
-    Checks if a detected circle is likely a bullet hole based on circularity and contrast.
-    
-    Args:
-    - image (np.array): The input image.
-    - x (int): The x-coordinate of the circle's center.
-    - y (int): The y-coordinate of the circle's center.
-    - r (int): The radius of the circle.
-    - min_contrast (float): Minimum contrast ratio between the inside and outside of the circle.
-    - max_circularity (float): Maximum allowed circularity for a valid bullet hole.
-    
-    Returns:
-    - bool: True if the circle passes the circularity and contrast checks, False otherwise.
-    """
-    
     # Crop the region around the circle
     cropped_circle = image[y-r:y+r, x-r:x+r]
     
@@ -281,145 +153,151 @@ def circularity_check(image,x, y, r):
     
     return True
 
-def detect_bullet_hole_test(image, turn, lane, target, gray_blur_value, block_size, thresh_a_val ,thresh_value, edge_thresh_1, edge_thresh_2,  min_dist, param1, param2, min_rad, max_rad):
-    # pre-processing
-    #draw_debug_elipse(image, 100, 80, 958, 750)
-    cropped_target, target_masked, target_mask = object_detection.detect_target(image)
-    zoomed = object_detection.zoom_in(cropped_target, 1) #TODO check xem tại sao crop sai ban đêm
-    zoomed = image
-    gray = cv2.cvtColor(zoomed, cv2.COLOR_BGR2GRAY)
-    
-    # Histogram Equalization to improve contrast
-    gray_equalized = cv2.equalizeHist(gray)
-    
-    # Apply Gaussian Blur to smooth lighting variations
-    gray_blurred = cv2.GaussianBlur(gray_equalized, (gray_blur_value, gray_blur_value), 0)
-    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    # Apply CLAHE to the image
-    #clahe_image = clahe.apply(gray_blurred)
-    # Adaptive thresholding to account for varying lighting conditions
-    thresh_adaptive = cv2.adaptiveThreshold(
-        gray_blurred, 
-        255, 
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        cv2.THRESH_BINARY, 
-        block_size, 
-        thresh_a_val
-    )
-    
-   
-    # Further binary thresholding if needed
-    #ret, inv_thresh = cv2.threshold(gray_blurred, 150, 255, cv2.THRESH_BINARY_INV)
-    #_, thresh = cv2.threshold(gray_blurred, 200, 255, cv2.THRESH_BINARY)
-    #ret, trunc_thresh = cv2.threshold(clahe_image, 55, 255, cv2.THRESH_TRUNC)
-    ret, otsu_thresh = cv2.threshold(thresh_adaptive, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+# getters
+def get_bullet_holes(lane, turn):
+    for result in results:
+        if result["name"] == f"{lane}-{turn}":
+            return result["holes"]
 
 
-    # Edge detection with dynamic thresholds
-    median_intensity = np.median(gray_blurred)
-    lower_thresh = max(0, median_intensity - edge_thresh_1)
-    upper_thresh = min(255, median_intensity + edge_thresh_2)
-    edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
-    
-    
-    # Apply dilation and erosion to link fragmented edges
-    kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
-    dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
-    linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
-    
-    
-    # Detect circles using HoughCircles
-    circles = cv2.HoughCircles(
-        linked_edges, 
-        cv2.HOUGH_GRADIENT, 
-        dp=0.1, 
-        minDist=min_dist, 
-        param1=param1, 
-        param2=param2, 
-        minRadius=min_rad, 
-        maxRadius=max_rad
-    )
-
-    # Process detected circles and filter based on size and circularity
-    if circles is not None:
-        circles = np.round(circles[0, :]).astype("int")
-        valid_circles = []
-        holes = []
-        for circle in circles:
-            x, y, r = circle
-            if is_hole_already_exist(x, y, r):
-                print("hole exist")
-                continue
-            print(r)
-            if circularity_check(image, x, y, r) and min_rad <= r <= max_rad:
-                valid_circles.append(circle)
-                holes.append((x, y, r))
-
-                result = {"name": f"{lane}-{turn}",
-                        "lane": lane,
-                        "turn": turn,
-                        "holes": holes
-                        }
-        
-                results.append(result)
-        
-        for result in results:
-            print(f"loat {result['turn']} ban trung : {len(result['holes'])} phat dan")
-    
-            for (x, y, r) in result['holes']:
-                draw_debug(zoomed, x, y, r, result["turn"])
-    if turn != 0:
-        cv2.imshow('Video Frame', zoomed)
-        calculate_score(lane, turn)
-        save_image(zoomed, lane, turn, target)  
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-def preprocess_image(image):
+def get_center_ellipse_parameters(image):
+    # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
-    # Histogram Equalization to improve contrast
-    gray_equalized = cv2.equalizeHist(gray)
-    
-    # Apply Gaussian Blur to smooth lighting variations
-    gray_blurred = cv2.GaussianBlur(gray_equalized, (15, 15), 0)
-    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    # Apply CLAHE to the image
-    #clahe_image = clahe.apply(gray_blurred)
-    # Adaptive thresholding to account for varying lighting conditions
-    thresh_adaptive = cv2.adaptiveThreshold(
-        gray_blurred, 
-        255, 
-        cv2.ADAPTIVE_THRESH_MEAN_C, 
-        cv2.THRESH_BINARY, 
-        11, 
-        2
-    )
-    
+    # Apply GaussianBlur to reduce noise and improve edge detection
+    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+    adaptive_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
+    # Use edge detection (Canny)
+    edges = cv2.Canny(adaptive_thresh, 50, 150)
+
+    # Find contours
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    center_ellipse = None
+    min_aspect_ratio = float("inf")
+    # Iterate over the contours and fit ellipses
+    for contour in contours:
+        if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
+            # Fit an ellipse to the contour
+            ellipse = cv2.fitEllipse(contour)
+            (h, k) = ellipse[0]
+            (a, b) = ellipse[1]
+            # Extract ellipse parameters (center, axes, angle)
+            center, axes, angle = ellipse
+            area = np.pi * a * b
+            aspect_ratio = 0
+            if (min(axes) != 0):
+                # Compute the aspect ratio (major axis / minor axis) to check if it's "perfect"
+                aspect_ratio = max(axes) / min(axes)
+
+            # 2-nd ellipse
+            if min_ratio < aspect_ratio < max_ratio and min_ellipse_area < area < max_ellipse_area and min_angle < angle < max_angle:
+                if aspect_ratio < min_aspect_ratio:
+                    min_aspect_ratio = aspect_ratio
+                    center_ellipse = ellipse
+                print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
+
+    a, b, h, k, angle = 125, 145, 880, 495, 90
+    if (center_ellipse):
+        (h, k) = center_ellipse[0]
+        (a, b) = center_ellipse[1]
+        angle = center_ellipse[2]
+        a=a//4
+        b=b//4
+
+    return int(a), int(b), int(h), int(k), int(angle)
+
+# draw
+def draw_debug_elipse(image, a, b, h, k, angle):
+    # rotation angle in degrees
+    start_angle = 0  # starting angle of the arc
+    end_angle = 360  # ending angle of the arc (full ellipse)
+    for i in range(1,6):
+    # Draw the ellipse on the image
+        if i==1:
+            k -= 18*i
+        if i>=3:
+            k += 9*i
+            a += 0.5*i
+            b += 0.5*i
+        #b += i
+        cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
+        cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
 
 
-    # Edge detection with dynamic thresholds
-    median_intensity = np.median(gray_blurred)
-    lower_thresh = max(0, median_intensity - 150)
-    upper_thresh = min(255, median_intensity + 150)
-    edges = cv2.Canny(thresh_adaptive, threshold1=lower_thresh, threshold2=upper_thresh)
+def calculate_score(lane, turn, target):
+    try:
+        holes = get_bullet_holes(lane, turn)
+        image = load_image(lane, turn, target)
+    except Exception as e:
+        print(e)
+        return ""
     
+    image = object_detection.remove_background(image)
+    (a,b,h,k,angle) = get_center_ellipse_parameters(image)
+    total_score = 0
+    score = 0
+    scores = []
+    i = 1
+    message = f"Loạt {turn}, bệ số {lane}:"
     
-    # Apply dilation and erosion to link fragmented edges
-    kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
-    dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
-    linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
-# Further thresholding
-    ret, otsu_thresh = cv2.threshold(linked_edges, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return otsu_thresh
+    for (x, y, w, j) in holes:
+        if i==1:
+            k -= 18*i
+        if i>=3:
+            k += 9*i
+            a += 0.5*i
+            b += 0.5*i
+        
+        if is_hole_inside_ellipse(x,y,h,k,a,b,angle):
+            score = 10
+        elif is_hole_inside_ellipse(x,y,h,k,2*a,2*b,angle):
+            score = 9
+        elif is_hole_inside_ellipse(x,y,h,k,3*a,3*b,angle):
+            score = 8
+        elif is_hole_inside_ellipse(x,y,h,k,4*a,4*b,angle):
+            score = 7
+        elif is_hole_inside_ellipse(x,y,h,k,5*a,5*b,angle):
+            score = 6
+        elif is_hole_inside_ellipse(x,y,h,k,6*a,6*b,angle):
+            score = 5
+        elif is_hole_inside_ellipse(x,y,h,k,7*a,7*b,angle):
+            score = 4
+        elif is_hole_inside_ellipse(x,y,h,k,8*a,8*b,angle):
+            score = 3
+        elif is_hole_inside_ellipse(x,y,h,k,9*a,9*b,angle):
+            score = 2
+        elif is_hole_inside_ellipse(x,y,h,k,10*a,10*b,angle):
+            score = 1
+        else:
+            score = 0
+            continue
+        
+        result = f"\n Phát {i}: {score} điểm"
+        message = message + result
+        total_score = total_score + score
+        scores.append(score)
+        print(result)
+        i += 1
+    
+    message = message + f"\n Tổng: {total_score} điểm"
+    print(message)
+
+    return message
+
 
 def compare_and_detect(lane, turn, target):
-    print(f"compare and detect {lane} {turn} {target}")
-    image_prev_turn = load_image(lane, turn-1, target)
-    image_curr_turn = load_image(lane, turn, target)
-    gray_prev = cv2.cvtColor(image_prev_turn, cv2.COLOR_BGR2GRAY)
-    gray_curr = cv2.cvtColor(image_curr_turn, cv2.COLOR_BGR2GRAY)
-    
+    try:
+        image_prev_turn = load_image(lane, turn-1, target)
+        image_curr_turn = load_image(lane, turn, target)
+
+        gray_prev = cv2.cvtColor(image_prev_turn, cv2.COLOR_BGR2GRAY)
+        gray_curr = cv2.cvtColor(image_curr_turn, cv2.COLOR_BGR2GRAY)
+    except Exception as e:
+        print(e)
+        return None, None
+
     # Step 1: Feature detection and matching (ORB in this case)
     orb = cv2.ORB_create()
 
@@ -459,19 +337,16 @@ def compare_and_detect(lane, turn, target):
     M_inv = np.linalg.inv(M)
 
     # Step 5: Warp the 'after' image to align with the 'before' image
-    height, width = gray_prev.shape
-    aligned_after = cv2.warpPerspective(gray_curr, M_inv, (width, height))
-
+    c_height, c_width = gray_curr.shape
+    aligned_before = cv2.warpPerspective(gray_prev, M, (c_width, c_height))
     # Step 6: Calculate the absolute difference between the images
-    diff_image = cv2.absdiff(aligned_after, gray_prev)
+    diff_image = cv2.absdiff(aligned_before, gray_curr)
 
-    #adaptive_thresh = cv2.adaptiveThreshold(diff_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     # Step 7: Threshold the difference image to highlight changes
-    _, thresh_diff = cv2.threshold(diff_image, 50, 255, cv2.THRESH_BINARY)
+    _, thresh_diff = cv2.threshold(diff_image, thresh_value, 255, cv2.THRESH_BINARY)
 
     # Step 8: Find contours in the thresholded difference image
     contours, _ = cv2.findContours(thresh_diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    filtered_contours = []
     # Step 9: Draw bounding boxes and annotate with numbers
     valid_holes = []
     for i, contour in enumerate(contours):
@@ -488,57 +363,48 @@ def compare_and_detect(lane, turn, target):
         # Calculate circularity
         circularity = 4 * np.pi * area / (perimeter ** 2)
             
-        #if 0.1 < aspect_ratio < 2:  # aspect ratio threshold for elongated shapes
-        #    if 0.1 < circularity < 2:
-        if True:
-            if 10 < w < 45 and 10 < h < 35: 
-                if 100 < area < 500: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
-                    print(area, x, y, w, h)
-                    filtered_contours.append(contour)
-                    x, y, w, h = cv2.boundingRect(contour)
-                    #if not is_hole_already_exist(x, y, w, h):
-                    if True:
-                        valid_holes.append((x, y, w, h))
-                        #cv2.putText(image_curr_turn, str(f"{area}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-                        result = {"name": f"{lane}-{turn}",
-                                "lane": lane,
-                                "turn": turn,
-                                "holes": valid_holes,
-                                "result_text": ""
-                                }
+        if 2 < w < 35 and 2 < h < 35: 
+            if 30 < area < 500: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
+                x, y, w, h = cv2.boundingRect(contour)
+                if not is_hole_already_exist(x, y, w, h):
+                #if True:
+                    valid_holes.append((x, y, w, h))
+                    cv2.putText(image_curr_turn, str(f"{area} {x,y,w,h} {aspect_ratio} {circularity}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                    result = {"name": f"{lane}-{turn}",
+                            "lane": lane,
+                            "turn": turn,
+                            "holes": valid_holes,
+                            "result_text": ""
+                            }
                     
-                        results.append(result)
+                    results.append(result)
+
     result_text = calculate_score(lane, turn, target)
     for i, result in enumerate(results):
         if (result["turn"] == turn):
             results[i]["result_text"] = result_text
-            #print(result["result_text"])
             for (x, y, w, h) in result['holes']:
-                #area = w*h
-                #perimeter = 2*(w+h)
-                #print(f"{turn}-{x,y}-{w,h}-{w/h}-{4 * np.pi * area / (perimeter ** 2)}-{area} {perimeter}")
-                cv2.rectangle(aligned_after, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                cv2.putText(aligned_after, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-
+                cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     # Step 10: Show the images with bounding boxes and numbers
-    (a, b, h, k, angle) = get_center_ellipse_parameters(aligned_after)
-    draw_debug_elipse(aligned_after,a, b, h, k, angle)
-    cv2.imshow('Bullet Holes Detected', aligned_after)
-    save_image(aligned_after, lane, turn, target)
-    cv2.imshow('Aligned Before Image', image_prev_turn)
-    cv2.imshow('Difference Image', diff_image)
-    cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
-    
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    #(a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
+    #draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
+    #cv2.imshow('Bullet Holes Detected', image_curr_turn)
+    #cv2.imshow('Aligned Before Image', image_prev_turn)
+    #cv2.imshow('Difference Image', diff_image)
+    #cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+
+    save_image(image_curr_turn, lane, turn, target)
     return image_curr_turn, result_text
 
 
 if __name__=="__main__":
-    cam = camera.Camera(1,"BiaSo4", 1)
-    #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4-1-2.jpg")
-    img = cam.capture_image(10)
-    save_image(img,1,10,"BiaSo4")
-    #compare_and_detect(1, 3, "BiaSo4")
-    get_center_ellipse_parameters(img)
+    #cam = camera.Camera(1,"BiaTest", 1)
+    #img = cv2.imread("./HinhAnh/DaiBan1/BiaTest-1-2.jpg")
+    #img = cam.capture_image(3)
+    #save_image(img,1,10,"BiaSo4")
+    compare_and_detect(1, 2, "BiaTest")
+    #get_center_ellipse_parameters(img)

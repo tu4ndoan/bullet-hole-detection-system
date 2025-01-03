@@ -18,7 +18,7 @@ class Camera:
             print(f"Waiting for camera {self.camera_id} to initialize...")
             cv2.waitKey(100)  # Wait for 100 ms before checking again
 
-        print(f"camera {self.camera_id} initialized successfully!")
+        print(f"Camera {self.camera_id} initialized successfully!")
         # Set resolution to 1080p
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
@@ -44,8 +44,6 @@ class Camera:
         cv2.imshow("Captured Image", frame)
 
     def save_image(self, frame, turn):
-        # if folder lane not exist, create new
-        # Save the captured frame as a file
         path = f"./HinhAnh/DaiBan{self.lane}/"
         if not os.path.exists(path):
             os.makedirs(path)
@@ -90,17 +88,3 @@ def parallel_capture(cameras, turn):
         t.join()
 
     cv2.destroyAllWindows()
-
-cameras = []
-camera_1 = Camera(lane=1, target="BiaSo8", camera_id=1)
-cameras.append(camera_1)
-
-# Example usage:
-if __name__ == "__main__":
-    camera_1 = Camera(lane=1, target="BiaTest", camera_id=1)
-    cameras = []
-    
-    #parallel_capture(cameras, 1)
-    camera_1.capture_image(0)
-    # Display the current lane and target
-
