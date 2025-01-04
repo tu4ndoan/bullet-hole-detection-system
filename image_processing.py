@@ -225,9 +225,7 @@ def remove_background(image):
 
         # Step 4: Remove background (by using the resized target mask)
         background_removed = cv2.bitwise_and(image, target_mask)
-        cv2.imshow("remove bg", background_removed)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        
     return background_removed
 
 

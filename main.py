@@ -56,52 +56,47 @@ def get_notebook_tab(lane):
     notebook_tab = notebook.tabs()[lane-1]
     return notebook.nametowidget(notebook_tab)
 
+def get_result_for_lane(lane, turn):
+    result = []
+    for target in camera.targets:
+        result_image, result_text = detect_bullet_hole.compare_and_detect(lane, turn, target)
+        result.append((result_image, result_text))
+    return result
+
+def display_result(lane, turn):
+    # List to hold images (in this case, we'll simulate with placeholder images)
+    result = get_result_for_lane(lane, num_turn)
+
+
+def add_result_to_frame(lane, turn):
+    new_result = get_result_for_lane(lane, turn)
+    canvas, content_frame, current_column = get_canvas_by_lane(lane)
+    # Add the new images to the content_frame
+    current_column = 0
+    for image, text in new_result:
+        result_image_resized = cv2.resize(image, (200, 200))
+        current_column = len(new_result)
+        result_image_pil = Image.fromarray(cv2.cvtColor(result_image_resized, cv2.COLOR_BGR2RGB))
+        img = ImageTk.PhotoImage(result_image_pil)
+        
+        frame = tk.Frame(content_frame)
+        img_label = tk.Label(frame, image=img)
+        img_label.image = img  # Keep a reference to the image
+        img_label.pack()
+        desc_label = tk.Label(frame, text=text)
+        desc_label.pack()
+        frame.grid(row=turn-1, column=current_column, padx=10, pady=10)
+        
+        current_column += 1
+    lane_canvases[lane] = (canvas, content_frame, current_column)
+    # Update the scrollable region of the canvas to include the new images
+    content_frame.update_idletasks()  # Update content frame size
+    canvas.config(scrollregion=canvas.bbox("all"))  # Update the scroll region
+
 def show_result(turn):
-    for target in camera.targets:  # Process each target
-        for lane in range(1, get_num_lane() + 1):
-            # Create a new tab for each target
-            target_tab = get_notebook_tab(lane)
-            canvas = tk.Canvas(target_tab)
-            canvas.pack(side="left", fill="both", expand=True)
-
-            # Create horizontal scrollbar for the canvas
-            scrollbar = ttk.Scrollbar(target_tab, orient="horizontal", command=canvas.xview)
-            scrollbar.pack(side="bottom", fill="x")
-            canvas.configure(xscrollcommand=scrollbar.set)
-
-            frame = tk.Frame(canvas)
-            canvas.create_window((0, 0), window=frame, anchor="nw")
-
-            result_image, result_text = detect_bullet_hole.compare_and_detect(lane, turn, target)
-
-            # Resize the image to fit into the canvas
-            result_image_resized = cv2.resize(result_image, (200, 200))
-
-            # Convert the NumPy array to a PIL Image
-            result_image_pil = Image.fromarray(cv2.cvtColor(result_image_resized, cv2.COLOR_BGR2RGB))
-
-            # Convert the PIL Image to a PhotoImage object
-            img = ImageTk.PhotoImage(result_image_pil)
-
-            # Create a frame for each image and its description
-            img_desc_frame = tk.Frame(frame)
-            img_desc_frame.pack(side="left", padx=10, pady=10)
-
-            # Create a label for the image
-            img_label = tk.Label(img_desc_frame, image=img)
-            img_label.image = img  # Keep a reference to the image to prevent garbage collection
-            img_label.pack()
-
-            # Create a label for the description text
-            desc_label = tk.Label(img_desc_frame, text=result_text)
-            desc_label.pack()
-
-            # Bind the image label to open the full image on click
-            img_label.bind("<Button-1>", lambda event, lane=lane, turn=turn, target=target: show_full_image(lane, turn, target))
-
-        # Update the scrollable region of the canvas
-        canvas.update_idletasks()
-        canvas.config(scrollregion=canvas.bbox("all"))
+    
+    for lane in range(1, get_num_lane() + 1):
+        display_result(lane)
     
 def start_shooting():
     if not get_num_lane() > 0:
@@ -123,16 +118,47 @@ def start_shooting():
     camera.parallel_capture(0)
     messagebox.showinfo("Thông báo", f"Bắt đầu bắn loạt {num_turn}")
 
+lane_canvases = {}
+def get_canvas_by_lane(lane):
+    """
+    Get the canvas for the given lane.
+    """
+    return lane_canvases.get(lane)
+
 def add_shooting_lane():
     """
     Add a new shooting lane tab to the notebook.
     """
-    shooting_lane = ttk.Frame(notebook)
-    notebook.add(shooting_lane, text=f"Dải bắn {get_num_lane() + 1}")
+    lane_number = get_num_lane() + 1  # New lane number
     
-    label = tk.Label(shooting_lane, text=f"Dải bắn {get_num_lane()}")
+    # Create a new tab for the new lane
+    shooting_lane = ttk.Frame(notebook)
+    notebook.add(shooting_lane, text=f"Dải bắn {lane_number}")
+    
+    label = tk.Label(shooting_lane, text=f"Dải bắn {lane_number}")
     label.pack(pady=20)
+
+    # Create the canvas that will hold all the images
+    canvas = tk.Canvas(shooting_lane)
+    canvas.pack(side="left", fill="both", expand=True)
+
+    # Create a horizontal scrollbar for the canvas
+    scrollbar = ttk.Scrollbar(canvas, orient="horizontal", command=canvas.xview)
+    scrollbar.pack(side="bottom", fill="x")
+    v_scrollbar = ttk.Scrollbar(canvas, orient="vertical", command=canvas.yview)
+    v_scrollbar.pack(side="right", fill="y")
+    canvas.configure(xscrollcommand=scrollbar.set)
+    canvas.configure(yscrollcommand=v_scrollbar.set)
+    # Create a frame inside the canvas to hold the images
+    content_frame = tk.Frame(canvas)
+    canvas.create_window((0, 0), window=content_frame, anchor="nw")
+
+    # Store the canvas in the dictionary with lane number as the key
+    lane_canvases[lane_number] = (canvas, content_frame, 0)
+
+    # Show a message box confirming the addition of the new lane
     messagebox.showinfo("Thông báo", f"Đã thêm 1 dải bắn, tổng cộng {get_num_lane()} dải bắn")
+
 
 def remove_shooting_lane(lane_num):
     lane = notebook.tabs()[lane_num]
@@ -156,7 +182,8 @@ def shooting_turn_complete():
     camera.parallel_capture(num_turn)
     cv2.waitKey(1000)
     # bao bia
-    show_result(num_turn)
+    for lane in range(1, get_num_lane()+1):
+        add_result_to_frame(lane, num_turn)
 
 def reset():
     """
