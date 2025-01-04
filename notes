@@ -11,3 +11,8 @@ khi tripod về sẽ moderate lại các tham số bia số 4
 và tìm tham số đối với bia số 7
 thêm các hàm xử lý base on loại bia 
 fix nhap lane
+
+object detection:
+điều kiện ánh sáng thấp: blur = 3, thresh = 150
+đieu kiện ánh sáng mạnh: blur = 9, thresh = 200
+TODO: vào hội trường trước khi thi, phải test 1-2 lần để xem điểu kiện ánh sáng đúng chưa, nếu chưa thì bấm nút "điều chỉnh tham số" để chỉnh lại theo hướng dẫn
