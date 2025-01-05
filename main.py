@@ -24,8 +24,6 @@ max_camera = 10 # bài 1 mỗi dải bắn nhập 3 camera tương đương vớ
 
 
 # Dictionary to store detected cameras
-camera_detected = []
-
 
 def get_num_lane():
     return len(notebook.tabs())
@@ -34,17 +32,16 @@ def get_num_lane():
 def check_camera_and_open_editor(max_camera):
     
     for camera_id in range(1, max_camera):
-            if (camera_id in camera_detected):
+            if (camera_id in camera.camera_indice):
                 print("camera added")
             else:
                 cap = cv2.VideoCapture(camera_id)
                 if cap.isOpened():
-                    camera_detected.append(camera_id)
                     cap.release()  # Close the camera after detection
                     camera.open_variable_editor(camera_id)
                     cv2.waitKey(0)
                 else:
-                    detection_label.config(text=f"Đã nhập {len(camera_detected)} camera")            
+                    detection_label.config(text=f"Đã nhập {len(camera.camera_indice)} camera")            
     
 def show_full_image(lane, turn, target):
     image1 = image_processing.load_result(lane, turn, target)
@@ -227,7 +224,7 @@ add_camera_btn.pack(padx=10, side="left")
 check_camera_btn = tk.Button(root, text="Kiểm tra camera", command=view_all_camera)
 check_camera_btn.pack(padx=10, side="left")
 
-detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera_detected)} camera đã thêm")
+detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera.camera_indice)} camera đã thêm")
 detection_label.pack(pady=20)
 
 root.mainloop()

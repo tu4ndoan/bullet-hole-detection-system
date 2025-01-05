@@ -5,6 +5,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from tkinter import ttk
+import camera
 
 # detect bullet hole params - Bia So 4 - with basic setup cọc mắc màn TODO: define set up voi tripod
 b_debug = False # if True, show debug images, edge, thresh, matches, remove bg, draw debug ellipses
@@ -415,8 +416,8 @@ def compare_and_detect(lane, turn, target):
         # Calculate circularity
         circularity = 4 * np.pi * area / (perimeter ** 2)
             
-        if 2 < w < 35 and 2 < h < 35: 
-            if 30 < area < 500: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
+        if 2 < w < 35 and 2 < h < 35 and 0.8 < aspect_ratio < 2 and circularity > 0.2: 
+            if 45 < area < 500: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
                 x, y, w, h = cv2.boundingRect(contour)
                 if not is_hole_already_exist(x, y, w, h):
                 #if True:
@@ -460,10 +461,10 @@ def compare_and_detect(lane, turn, target):
     return image_curr_turn, result_text
 
 if __name__=="__main__":
-    b_debug = True
+    b_debug = False
     #cam = camera.Camera(1,"BiaTest", 1)
     #img = cv2.imread("./HinhAnh/DaiBan1/BiaTest-1-2.jpg")
-    #img = cam.capture_image(3)
+    #img = cam.capture_image(5)
     #save_image(img,1,10,"BiaSo4")
     compare_and_detect(1, 2, "BiaTest")
     #get_center_ellipse_parameters(img)

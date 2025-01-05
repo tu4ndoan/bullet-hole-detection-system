@@ -115,6 +115,59 @@ def preprocess_image(image):
 
     return gray
 
+def process_image(image, gamma=2, alpha=1.5, beta=30):
+    # 1. Gamma Correction
+    def adjust_gamma(image, gamma):
+        inv_gamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+        return cv2.LUT(image, table)
+
+    # 2. Unsharp Masking for sharpening
+    def unsharp_mask(image):
+        blurred = cv2.GaussianBlur(image, (5, 5), 1.5)
+        return cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
+
+    # 3. Adaptive Thresholding
+    def adaptive_threshold(image):
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return cv2.adaptiveThreshold(gray_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
+    # 4. CLAHE (Contrast Limited Adaptive Histogram Equalization)
+    def apply_clahe(image):
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        return clahe.apply(gray_image)
+
+    # 5. Contrast and Brightness Adjustment
+    def adjust_contrast_brightness(image, alpha, beta):
+        return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
+    # Step 1: Apply Gamma Correction
+    image = adjust_gamma(image, gamma)
+
+    # Step 2: Apply Contrast and Brightness Adjustment
+    image = adjust_contrast_brightness(image, alpha, beta)
+
+    # Step 3: Apply Unsharp Mask for sharpening
+    image = unsharp_mask(image)
+
+    # Step 4: Apply CLAHE for enhancing local details
+    image_clahe = apply_clahe(image)
+
+    # Step 5: Perform Edge Detection (Canny) for fine details
+    edges = cv2.Canny(image, 50, 150)
+
+    # Step 6: Adaptive Thresholding for handling high contrast and overexposed areas
+    thresh_image = adaptive_threshold(image)
+
+    # Return processed image (you can return all or choose one of the results depending on use)
+    return image, image_clahe, edges, thresh_image
+
+
+
+    
+
+
 def detect_target(image):
     """
     Detects an object (e.g., a shooting target) in the image using contour detection.
@@ -129,7 +182,7 @@ def detect_target(image):
     gray = preprocess_image(image)
     
     # Step 2: Apply GaussianBlur to reduce noise and improve edge detection
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0) # 5 5 
+    blurred = cv2.GaussianBlur(gray, (9, 9), 0) # 5 5 
     
    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     # Apply CLAHE to the image
@@ -141,16 +194,16 @@ def detect_target(image):
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
         cv2.THRESH_BINARY, 
         11, 
-        2
+        1
     )
     
     ret, otsu_thresh = cv2.threshold(thresh_adaptive, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Edge detection with dynamic thresholds
     median_intensity = np.median(blurred)
-    lower_thresh = max(0, median_intensity - 150)
+    lower_thresh = max(0, median_intensity - 200)
     upper_thresh = min(255, median_intensity + 150)
-    edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh) # 150 150
+    edges = cv2.Canny(otsu_thresh, threshold1=200, threshold2=200) # 150 150
 
     kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
     dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
@@ -260,3 +313,20 @@ if __name__ == "__main__":
         cv2.destroyAllWindows()
     else:
         print("Target not detected.")
+
+    """# Example Usage:
+    cam = camera.Camera(1, "BiaTest", 1)
+    #image = cam.capture_image(300)
+    image = cv2.imread('./HinhAnh/DaiBan1/BiaTest-1-5.jpg')
+
+    # Process image
+    processed_image, clahe_image, edges_image, thresh_image = process_image(image)
+
+    # Show results
+    cv2.imshow("original", image)
+    cv2.imshow("Processed Image", processed_image)
+    cv2.imshow("CLAHE Image", clahe_image)
+    cv2.imshow("Edges Image", edges_image)
+    cv2.imshow("Thresholded Image", thresh_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()"""

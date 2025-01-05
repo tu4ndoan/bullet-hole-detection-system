@@ -38,7 +38,7 @@ def detect_target(image):
     gray = preprocess_image(image)
     
     # Step 2: Apply GaussianBlur to reduce noise and improve edge detection
-    blurred = cv2.GaussianBlur(gray, (9, 9), 0) # 5 5
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0) # 5 5
     
    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     # Apply CLAHE to the image
@@ -57,8 +57,8 @@ def detect_target(image):
 
     # Edge detection with dynamic thresholds
     median_intensity = np.median(blurred)
-    lower_thresh = max(0, median_intensity - 200)
-    upper_thresh = min(255, median_intensity + 200)
+    lower_thresh = max(0, median_intensity - 150)
+    upper_thresh = min(255, median_intensity + 150)
     edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh) # 150 150
 
     kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     #image_path = './HinhAnh/DaiBan1/BiaSo4-1-10.jpg'  # Replace with the path to your image
     #image = cv2.imread(image_path)
     cam = camera.Camera(1, "BiaTest", 1)
-    image = cam.capture_image(3)
+    image = cam.capture_image(121)
 
     # Step 1: Detect the target (e.g., shooting target)
     try:
