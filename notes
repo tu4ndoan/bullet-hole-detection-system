@@ -5,12 +5,13 @@ is hole exist check < 50
 10 < w < 45 and 10 < h < 35: 
 100 < area < 500
 center ellipse 125, 145, 935, 515, 90
-k += 10*i (tam ellipse)
-a,b cung phai bien thien theo i
+
 khi tripod về sẽ moderate lại các tham số bia số 4
 và tìm tham số đối với bia số 7
 thêm các hàm xử lý base on loại bia 
 fix nhap lane
+
+xin bia số 7 để đo thông số lỗ đạn
 
 object detection:
 điều kiện ánh sáng thấp: blur = 3, thresh = 150

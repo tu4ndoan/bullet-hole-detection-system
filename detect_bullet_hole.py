@@ -11,17 +11,21 @@ import camera
 b_debug = False # if True, show debug images, edge, thresh, matches, remove bg, draw debug ellipses
 thresh_value = 50
 min_h_w = 6
-max_h_w = 35
-min_bullet_hole_area = 30
-max_bullet_hole_area = 500
-hole_to_hole_distance = 50
+max_h_w = 30
+min_bullet_hole_area = 45
+max_bullet_hole_area = 150
+hole_to_hole_distance = 20
+
 # ellipse detection params
 min_ratio = 1.1
 max_ratio = 1.2
-min_ellipse_area = 800000
+min_ellipse_area = 500000
 max_ellipse_area = 1000000
 min_angle = 80
 max_angle = 100
+
+delta_k = 9
+delta_a = 0.5
 
 results = []
 
@@ -218,16 +222,11 @@ def get_bullet_holes(lane, turn):
 
 
 def get_center_ellipse_parameters(image):
-    # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Apply GaussianBlur to reduce noise and improve edge detection
-    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
-    adaptive_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-
-    # Use edge detection (Canny)
-    edges = cv2.Canny(adaptive_thresh, 50, 150)
-
+    image = image_processing.gamma_correction(image)
+    gray = image_processing.preprocess_image(image)
+    edges = image_processing.linked_edges(gray)
+    cv2.imshow("edge", image)
+    cv2.waitKey(0)
     # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -253,9 +252,17 @@ def get_center_ellipse_parameters(image):
                 if aspect_ratio < min_aspect_ratio:
                     min_aspect_ratio = aspect_ratio
                     center_ellipse = ellipse
+                cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (255,0,0), 1)
                 print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
-
-    a, b, h, k, angle = 125, 145, 880, 495, 90
+    # Get image dimensions
+    if len(image.shape) == 2:  # Grayscale image
+        height, width = image.shape
+    else:  # Color image (height, width, channels)
+        height, width, _ = image.shape
+    # Center of the frame
+    frame_center = (width // 2, height // 2)
+    (h, k) = frame_center
+    a, b, angle = 100, 130, 90 #bia so 4
     if (center_ellipse):
         (h, k) = center_ellipse[0]
         (a, b) = center_ellipse[1]
@@ -273,11 +280,11 @@ def draw_debug_elipse(image, a, b, h, k, angle):
     for i in range(1,6):
     # Draw the ellipse on the image
         if i==1:
-            k -= 18*i
+            k -= 2*delta_k*i
         if i>=3:
-            k += 9*i
-            a += 0.5*i
-            b += 0.5*i
+            k += delta_k*i
+            a += delta_a*i
+            b += delta_a*i
         cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
         cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
 
@@ -350,12 +357,16 @@ def compare_and_detect(lane, turn, target):
     try:
         image_prev_turn = image_processing.load_image(lane, turn-1, target)
         image_curr_turn = image_processing.load_image(lane, turn, target)
+        image_curr_turn = image_processing.gamma_correction(image_curr_turn)
+        image_prev_turn = image_processing.gamma_correction(image_prev_turn)
+        
+        gray_prev = image_processing.preprocess_image(image_prev_turn)
+        gray_curr = image_processing.preprocess_image(image_curr_turn) # giảm được ảnh hưởng của nắng
 
-        gray_prev = cv2.cvtColor(image_prev_turn, cv2.COLOR_BGR2GRAY)
-        gray_curr = cv2.cvtColor(image_curr_turn, cv2.COLOR_BGR2GRAY)
     except Exception as e:
         print(e)
         return None, None
+    
 
     # Step 1: Feature detection and matching (ORB in this case)
     orb = cv2.ORB_create()
@@ -387,7 +398,7 @@ def compare_and_detect(lane, turn, target):
     M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
 
     # Inverse the homography matrix to warp the 'after' image to the 'before' image
-    M_inv = np.linalg.inv(M)
+    #M_inv = np.linalg.inv(M)
 
     # Step 5: Warp the 'after' image to align with the 'before' image
     c_height, c_width = gray_curr.shape
@@ -416,13 +427,14 @@ def compare_and_detect(lane, turn, target):
         # Calculate circularity
         circularity = 4 * np.pi * area / (perimeter ** 2)
             
-        if 2 < w < 35 and 2 < h < 35 and 0.8 < aspect_ratio < 2 and circularity > 0.2: 
-            if 45 < area < 500: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
+        if min_h_w < w < max_h_w and min_h_w < h < max_h_w and 0.8 < aspect_ratio < 2 and circularity > 0.5: 
+            if min_bullet_hole_area < area < max_bullet_hole_area: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
                 x, y, w, h = cv2.boundingRect(contour)
                 if not is_hole_already_exist(x, y, w, h):
                 #if True:
                     valid_holes.append((x, y, w, h))
                     cv2.putText(image_curr_turn, str(f"{area} {x,y,w,h} {aspect_ratio} {circularity}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                    print(area, w, h, aspect_ratio, circularity)
                     result = {"name": f"{lane}-{turn}",
                             "lane": lane,
                             "turn": turn,
@@ -438,7 +450,7 @@ def compare_and_detect(lane, turn, target):
             results[i]["result_text"] = result_text
             for (x, y, w, h) in result['holes']:
                 cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                #cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     # Step 10: Show the images with bounding boxes and numbers
     if b_debug:
@@ -451,7 +463,7 @@ def compare_and_detect(lane, turn, target):
         draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
         cv2.imshow('Bullet Holes Detected', image_curr_turn)
         cv2.imshow('Aligned Before Image', aligned_before)
-        cv2.imshow('Difference Image', diff_image)
+        cv2.imshow('Difference Image', gray_curr)
         cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -461,10 +473,12 @@ def compare_and_detect(lane, turn, target):
     return image_curr_turn, result_text
 
 if __name__=="__main__":
-    b_debug = False
-    #cam = camera.Camera(1,"BiaTest", 1)
-    #img = cv2.imread("./HinhAnh/DaiBan1/BiaTest-1-2.jpg")
+    b_debug = True
+    cam = camera.Camera(1,"BiaSo4Test", 1)
+    #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4Test-1-1.jpg")
+    
     #img = cam.capture_image(5)
+    #img2 = cam.capture_image(3)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 2, "BiaTest")
+    compare_and_detect(1, 3, "BiaSo4Test")
     #get_center_ellipse_parameters(img)

@@ -115,7 +115,7 @@ def preprocess_image(image):
 
     return gray
 
-def process_image(image, gamma=2, alpha=1.5, beta=30):
+def process_image(image, gamma=1.2, alpha=1.5, beta=30):
     # 1. Gamma Correction
     def adjust_gamma(image, gamma):
         inv_gamma = 1.0 / gamma
@@ -164,9 +164,48 @@ def process_image(image, gamma=2, alpha=1.5, beta=30):
     return image, image_clahe, edges, thresh_image
 
 
-
+def linked_edges(gray_equalized):
     
+    # Apply Gaussian Blur to smooth lighting variations
+    gray_blurred = cv2.GaussianBlur(gray_equalized, (5, 5), 0)
+    
+    # Adaptive thresholding to account for varying lighting conditions
+    thresh_adaptive = cv2.adaptiveThreshold(
+        gray_blurred, 
+        255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY, 
+        11, 
+        2
+    )
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
+    clahe_image = clahe.apply(thresh_adaptive)
+    # Further binary thresholding if needed
+    #ret, inv_thresh = cv2.threshold(gray_blurred, 150, 255, cv2.THRESH_BINARY_INV)
+    #_, thresh = cv2.threshold(gray_blurred, 150, 255, cv2.THRESH_BINARY)
+    #ret, trunc_thresh = cv2.threshold(clahe_image, 55, 255, cv2.THRESH_TRUNC)
+    _, otsu_thresh = cv2.threshold(clahe_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+
+    # Edge detection with dynamic thresholds
+    median_intensity = np.median(gray_blurred)
+    lower_thresh = max(0, median_intensity - 150)
+    upper_thresh = min(255, median_intensity + 150)
+    edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
+    
+    
+    # Apply dilation and erosion to link fragmented edges
+    kernel = np.ones((3, 3), np.uint8)  # A 3x3 kernel for dilation and erosion
+    dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
+    linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
+    return linked_edges
+
+
+def gamma_correction(image, gamma=0.5):
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+    return cv2.LUT(image, table)
 
 def detect_target(image):
     """
@@ -314,10 +353,8 @@ if __name__ == "__main__":
     else:
         print("Target not detected.")
 
-    """# Example Usage:
-    cam = camera.Camera(1, "BiaTest", 1)
-    #image = cam.capture_image(300)
-    image = cv2.imread('./HinhAnh/DaiBan1/BiaTest-1-5.jpg')
+    
+    image = cv2.imread('./HinhAnh/DaiBan1/BiaSo4Test-1-3.jpg')
 
     # Process image
     processed_image, clahe_image, edges_image, thresh_image = process_image(image)
@@ -329,4 +366,4 @@ if __name__ == "__main__":
     cv2.imshow("Edges Image", edges_image)
     cv2.imshow("Thresholded Image", thresh_image)
     cv2.waitKey(0)
-    cv2.destroyAllWindows()"""
+    cv2.destroyAllWindows()
