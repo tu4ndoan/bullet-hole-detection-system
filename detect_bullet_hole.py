@@ -227,8 +227,16 @@ def get_bullet_holes(lane, turn, target):
 
 def get_center_ellipse_parameters(image):
     #image = image_processing.gamma_correction(image)
-    gray = image_processing.preprocess_image(image)
-    edges = image_processing.linked_edges(gray)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Normalize pixel values to 0-255 range
+    gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+
+    # Apply histogram equalization for better contrast
+    gray = cv2.equalizeHist(gray)
+
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+      # Apply Gaussian Blur to smooth the image
+    edges = cv2.Canny(blurred, 10, 150)
     cv2.imshow("edge", edges)
     cv2.waitKey(0)
     # Find contours
@@ -246,18 +254,19 @@ def get_center_ellipse_parameters(image):
             # Extract ellipse parameters (center, axes, angle)
             center, axes, angle = ellipse
             area = np.pi * a * b
-            aspect_ratio = 0
             if (min(axes) != 0):
                 # Compute the aspect ratio (major axis / minor axis) to check if it's "perfect"
                 aspect_ratio = max(axes) / min(axes)
+            else:
+                print("Error: Division by zero")
+                return None
 
             # 2-nd ellipse
-            if min_ratio < aspect_ratio < max_ratio and min_ellipse_area < area < max_ellipse_area and min_angle < angle < max_angle:
-                if aspect_ratio < min_aspect_ratio:
-                    min_aspect_ratio = aspect_ratio
-                    center_ellipse = ellipse
-                    #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (255,0,0), 1)
-                    print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
+            if aspect_ratio < min_aspect_ratio:
+                min_aspect_ratio = aspect_ratio
+                center_ellipse = ellipse
+                cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (255,0,0), 1)
+                print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
     # Get image dimensions
     if len(image.shape) == 2:  # Grayscale image
         height, width = image.shape
@@ -303,8 +312,11 @@ def calculate_score(holes, lane, turn, target):
     if holes == None:
         print(f"Loạt {turn}, bệ số {lane} Mục tiêu {target} an toàn")
         return f"Loạt {turn}, bệ số {lane} Mục tiêu {target} an toàn"
-    
-    (a,b,h,k,angle) = get_center_ellipse_parameters(image)
+    try:
+        (a,b,h,k,angle) = get_center_ellipse_parameters(image)
+    except Exception as e:
+        print(e)
+        return f"Không thể xác định elipse trung tâm"
     total_score = 0
     score = 0
     scores = []
@@ -358,12 +370,13 @@ def compare_and_detect(lane, turn, target):
     try:
         image_prev_turn = image_processing.load_image(lane, turn-1, target)
         image_curr_turn = image_processing.load_image(lane, turn, target)
-
-        image_curr_turn = image_processing.gamma_correction(image_curr_turn)
-        image_prev_turn = image_processing.gamma_correction(image_prev_turn)
+        processed_prev,_,_,_ = image_processing.process_image(image_prev_turn)# process xong nhan them 2 lo, trong do co 1 lo sai?
+        processed_curr,_,_,_ = image_processing.process_image(image_curr_turn)
+        p_gamma = image_processing.gamma_correction(image_prev_turn)
+        c_gamma = image_processing.gamma_correction(image_curr_turn)
         
-        gray_prev = image_processing.preprocess_image(image_prev_turn)
-        gray_curr = image_processing.preprocess_image(image_curr_turn) # giảm ảnh hưởng của nắng
+        gray_prev = image_processing.preprocess_image(processed_prev)
+        gray_curr = image_processing.preprocess_image(processed_curr) # giảm ảnh hưởng của nắng
 
     except Exception as e:
         print(e)
@@ -453,15 +466,19 @@ def compare_and_detect(lane, turn, target):
         cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
         cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-    # Step 10: Show the images with bounding boxes and numbers
+    image_processing.save_image(image_curr_turn, lane, turn, target)
+    # Step 10: Show the images with bounding boxes and numbers (debug only)
     if b_debug:
         # Show the matched keypoints
         image_matches = cv2.drawMatches(gray_prev, kp1, gray_curr, kp2, good_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
         plt.imshow(image_matches)
         plt.title('Feature Matches')
         plt.show()
-        (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
-        draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
+        try:
+            (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
+            draw_debug_elipse(image_curr_turn,a, b, h, k, angle)
+        except Exception as e:
+            print(e)
         cv2.imshow('Bullet Holes Detected', image_curr_turn)
         cv2.imshow('Aligned Before Image', aligned_before)
         cv2.imshow('Difference Image', gray_curr)
@@ -469,8 +486,6 @@ def compare_and_detect(lane, turn, target):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
-
-    image_processing.save_image(image_curr_turn, lane, turn, target)
     return image_curr_turn, result_text
 
 if __name__=="__main__":

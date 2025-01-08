@@ -190,7 +190,7 @@ def linked_edges(gray_equalized):
 
     # Edge detection with dynamic thresholds
     median_intensity = np.median(gray_blurred)
-    lower_thresh = max(0, median_intensity - 150)
+    lower_thresh = max(0, median_intensity - 50)
     upper_thresh = min(255, median_intensity + 150)
     edges = cv2.Canny(otsu_thresh, threshold1=lower_thresh, threshold2=upper_thresh)
     
@@ -223,7 +223,7 @@ def detect_target(image):
     # Step 2: Apply GaussianBlur to reduce noise and improve edge detection
     blurred = cv2.GaussianBlur(gray, (9, 9), 0) # 5 5 
     
-   #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    #clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     # Apply CLAHE to the image
     #clahe_image = clahe.apply(gray_blurred)
     # Adaptive thresholding to account for varying lighting conditions
