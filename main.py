@@ -21,7 +21,9 @@ label = ttk.Frame(notebook)
 # Variables
 num_turn = 1
 max_camera = 10 # bài 1 mỗi dải bắn nhập 3 camera tương đương với 3 bia
-
+# Boolean variable to store the state of the checkbox
+b_debug = tk.BooleanVar()
+b_debug.set(False)  # Set the default state of the checkbox
 
 # Dictionary to store detected cameras
 
@@ -62,12 +64,16 @@ def get_result_for_lane(lane, turn):
 
 def add_result_to_frame(lane, turn):
     new_result = get_result_for_lane(lane, turn)
+    print(len(new_result))
     canvas, content_frame, current_column = get_canvas_by_lane(lane)
     # Add the new images to the content_frame
     current_column = 0
+    current_row = 0
     for image, text in new_result:
+        print(f"Adding image to frame {current_column} {current_row}")
+
         result_image_resized = cv2.resize(image, (200, 200))
-        current_column = len(new_result)
+        
         result_image_pil = Image.fromarray(cv2.cvtColor(result_image_resized, cv2.COLOR_BGR2RGB))
         img = ImageTk.PhotoImage(result_image_pil)
         
@@ -84,7 +90,7 @@ def add_result_to_frame(lane, turn):
         
         current_column += 1
     lane_canvases[lane] = (canvas, content_frame, current_column)
-    # Update the scrollable region of the canvas to include the new images
+        # Update the scrollable region of the canvas to include the new images
     content_frame.update_idletasks()  # Update content frame size
     canvas.config(scrollregion=canvas.bbox("all"))  # Update the scroll region
     
@@ -105,7 +111,9 @@ def start_shooting():
             os.makedirs(result_dir)
     # chụp tất cả các bia trước khi bắn để so sánh
     # call parallel capture
-    camera.parallel_capture(0)
+    if not b_debug:
+        camera.parallel_capture(0)
+
     messagebox.showinfo("Thông báo", f"Bắt đầu bắn loạt {num_turn}")
 
 lane_canvases = {}
@@ -169,8 +177,9 @@ def shooting_turn_complete():
     """
     global num_turn
     # capture the target after each shooting turn
-    camera.parallel_capture(num_turn)
-    cv2.waitKey(1000)
+    if not b_debug:
+        camera.parallel_capture(num_turn)
+        cv2.waitKey(1000)
     # bao bia
     for lane in range(1, get_num_lane()+1):
         add_result_to_frame(lane, num_turn)
@@ -219,5 +228,12 @@ check_camera_btn.pack(padx=10, side="left")
 
 detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera.camera_indice)} camera đã thêm")
 detection_label.pack(pady=20)
+
+
+# Create a checkbox widget
+checkbox = tk.Checkbutton(root, text="debug mode", variable=b_debug)
+
+# Pack the checkbox onto the window
+checkbox.pack(padx=10, side="left")
 
 root.mainloop()
