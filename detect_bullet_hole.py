@@ -16,17 +16,17 @@ max_h_w = 50
 min_bullet_hole_area = 45
 max_bullet_hole_area = 150
 hole_to_hole_distance = 50 
-min_hole_circularity = 0.25
+min_hole_circularity = 0.3 #phu thuoc camera angle and distance to target
 min_hole_ratio = 0.5
 max_hole_ratio = 2
 
 # ellipse detection params
-min_ratio = 1.1
-max_ratio = 1.2
-min_ellipse_area = 500000
-max_ellipse_area = 1000000
-min_angle = 80
-max_angle = 110
+min_ratio = 0.5
+max_ratio = 2
+min_ellipse_area = 100000
+max_ellipse_area = 3000000
+min_angle = 0
+max_angle = 360
 
 delta_k = 9
 delta_a = 0.5
@@ -225,65 +225,85 @@ def get_bullet_holes(lane, turn, target):
             return result["holes"]
 
 
-def get_center_ellipse_parameters(image):
-    #image = image_processing.gamma_correction(image)
+import cv2
+import numpy as np
+
+def get_center_ellipse_parameters(image, min_ratio=1.0, max_ratio=2.0, min_ellipse_area=100, max_ellipse_area=10000, min_angle=0, max_angle=360):
+    # Convert the image to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
     # Normalize pixel values to 0-255 range
     gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
 
     # Apply histogram equalization for better contrast
     gray = cv2.equalizeHist(gray)
 
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-      # Apply Gaussian Blur to smooth the image
-    edges = cv2.Canny(blurred, 10, 150)
-    cv2.imshow("edge", edges)
-    cv2.waitKey(0)
-    # Find contours
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Apply Gaussian Blur to smooth the image
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
+    # Use adaptive thresholding for better edge detection in varying lighting conditions
+    thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+
+    # Find contours
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
     center_ellipse = None
     min_aspect_ratio = float("inf")
+
     # Iterate over the contours and fit ellipses
     for contour in contours:
-        if len(contour) >= 5:  # Fit an ellipse requires at least 5 scores
+        if len(contour) >= 5:  # Fit an ellipse requires at least 5 points
             # Fit an ellipse to the contour
             ellipse = cv2.fitEllipse(contour)
-            (h, k) = ellipse[0]
-            (a, b) = ellipse[1]
-            # Extract ellipse parameters (center, axes, angle)
-            center, axes, angle = ellipse
+            (h, k) = ellipse[0]  # Center of the ellipse
+            (a, b) = ellipse[1]  # Major and minor axes
+            angle = ellipse[2]  # Angle of rotation of the ellipse
+            # Check if any parameter is NaN or invalid
+            if np.isnan(h) or np.isnan(k) or np.isnan(a) or np.isnan(b) or np.isnan(angle):
+                continue
+            # Calculate the area of the ellipse
             area = np.pi * a * b
-            if (min(axes) != 0):
-                # Compute the aspect ratio (major axis / minor axis) to check if it's "perfect"
-                aspect_ratio = max(axes) / min(axes)
-            else:
-                print("Error: Division by zero")
-                return None
 
-            # 2-nd ellipse
-            if aspect_ratio < min_aspect_ratio:
-                min_aspect_ratio = aspect_ratio
-                center_ellipse = ellipse
-                cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (255,0,0), 1)
-                print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
+            if area == 0 or a == 0 or b == 0:
+                continue
+
+            # Calculate aspect ratio
+            aspect_ratio = max(a, b) / min(a, b)
+
+            # Apply aspect ratio and area filters
+            if aspect_ratio < min_ratio or aspect_ratio > max_ratio:
+                continue
+            if area < 500000:
+                continue
+            if angle < min_angle or angle > max_angle:
+                continue
+
+            # If this ellipse passes the criteria, save it
+            center_ellipse = ellipse
+
+            # Draw the ellipse on the image (for visualization purposes)
+            cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0, 255, 0), 2)  # Green color, thickness 2
+
+            print(f"Found ellipse: Area={area}, Aspect Ratio={aspect_ratio}, Angle={angle}, Position=({h}, {k})")
+
     # Get image dimensions
-    if len(image.shape) == 2:  # Grayscale image
-        height, width = image.shape
-    else:  # Color image (height, width, channels)
-        height, width, _ = image.shape
-    # Center of the frame
-    frame_center = (width // 2, height // 2)
-    (h, k) = frame_center
-    a, b, angle = 100, 130, 90 #bia so 4
-    if (center_ellipse):
-        (h, k) = center_ellipse[0]
-        (a, b) = center_ellipse[1]
-        angle = center_ellipse[2]
-        a=a//4
-        b=b//4
+    height, width = image.shape[:2]
+
+    # Default values for ellipse parameters in case no ellipse is found
+    h, k = width // 2, height // 2
+    a, b, angle = 100, 130, 90  # Default ellipse parameters
+
+    if center_ellipse:
+        (h, k) = center_ellipse[0]  # Center
+        (a, b) = center_ellipse[1]  # Axes
+        angle = center_ellipse[2]   # Angle
+        a = a // 4  # Scale down major axis for your use case
+        b = b // 4  # Scale down minor axis for your use case
 
     return int(a), int(b), int(h), int(k), int(angle)
+
+
+
 
 # draw
 def draw_debug_elipse(image, a, b, h, k, angle):
@@ -434,19 +454,20 @@ def compare_and_detect(lane, turn, target):
 
         # continue filtering holes
         perimeter = cv2.arcLength(contour, True)
-        area = cv2.contourArea(contour)
+        contour_area = cv2.contourArea(contour)
+        hole_area = w*h
         aspect_ratio = w / h if h != 0 else 0
-        circularity = 4 * np.pi * area / (perimeter ** 2)
+        circularity = 4 * np.pi * contour_area / (perimeter ** 2)
         if perimeter == 0:
             continue
-        if area < min_bullet_hole_area or area > max_bullet_hole_area:
+        if contour_area < min_bullet_hole_area or contour_area > max_bullet_hole_area:
             continue
         if circularity < min_hole_circularity:
             continue
         if min_hole_ratio > aspect_ratio or aspect_ratio > max_hole_ratio:
             continue
-        print(perimeter, area, circularity, aspect_ratio)
-        
+        #print(perimeter, contour_area, circularity, aspect_ratio)
+        print(x,y,w,h, contour_area, hole_area, perimeter, aspect_ratio, circularity)
         # pass all the check? then append to valid_holes
         valid_holes.append((x, y, w, h))
     # construct result
@@ -460,11 +481,13 @@ def compare_and_detect(lane, turn, target):
             }
                     
     results.append(result)
-
+    
     # draw bounding boxes and annotate with numbers
     for (x,y,w,h) in valid_holes:
         cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
-        cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        cv2.putText(image_curr_turn, str(f"{x,y}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        #cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        
 
     image_processing.save_image(image_curr_turn, lane, turn, target)
     # Step 10: Show the images with bounding boxes and numbers (debug only)
@@ -496,5 +519,5 @@ if __name__=="__main__":
     #img = cam.capture_image(5)
     #img2 = cam.capture_image(3)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 1, "BiaSo4")
+    compare_and_detect(1, 1, "BiaSo7")
     #get_center_ellipse_parameters(img)
