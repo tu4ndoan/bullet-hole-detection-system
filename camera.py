@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 
-targets = []
+targets = ["BiaSo4", "BiaSo7"]
 camera_objects = []
 camera_indice = []
 class Camera:

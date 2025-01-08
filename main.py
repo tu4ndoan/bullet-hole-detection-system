@@ -60,6 +60,7 @@ def get_result_for_lane(lane, turn):
     for target in camera.targets:
         result_image, result_text = detect_bullet_hole.compare_and_detect(lane, turn, target)
         result.append((result_image, result_text))
+        print(result_text)
     return result
 
 def add_result_to_frame(lane, turn):

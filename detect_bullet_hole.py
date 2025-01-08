@@ -12,17 +12,17 @@ b_debug = False # if True, show debug images, edge, thresh, matches, remove bg, 
 thresh_value = 50
 min_h_w = 6
 max_h_w = 50
-min_bullet_hole_area = 30
-max_bullet_hole_area = 300
-hole_to_hole_distance = 20
+min_bullet_hole_area = 45
+max_bullet_hole_area = 150
+hole_to_hole_distance = 50 
 
 # ellipse detection params
-min_ratio = 1.1
-max_ratio = 1.2
-min_ellipse_area = 500000
-max_ellipse_area = 1000000
-min_angle = 80
-max_angle = 100
+min_ratio = 1
+max_ratio = 2
+min_ellipse_area = 100
+max_ellipse_area = 2000000
+min_angle = 60
+max_angle = 120
 
 delta_k = 9
 delta_a = 0.5
@@ -38,8 +38,8 @@ def load_target_params(target):
         min_h_w = 6
         max_h_w = 50
 
-        min_bullet_hole_area = 30
-        max_bullet_hole_area = 500
+        min_bullet_hole_area = 45
+        max_bullet_hole_area = 150
 
         hole_to_hole_distance = 50
 
@@ -48,7 +48,7 @@ def load_target_params(target):
         min_ratio = 1.1
         max_ratio = 1.2
 
-        min_ellipse_area = 800000
+        min_ellipse_area = 100
         max_ellipse_area = 1000000
 
         min_angle = 80
@@ -215,9 +215,9 @@ def circularity_check(image,x, y, r):
     return True
 
 # getters
-def get_bullet_holes(lane, turn):
+def get_bullet_holes(lane, turn, target):
     for result in results:
-        if result["name"] == f"{lane}-{turn}":
+        if result["name"] == f"{lane}-{turn}-{target}":
             return result["holes"]
 
 
@@ -225,7 +225,8 @@ def get_center_ellipse_parameters(image):
     #image = image_processing.gamma_correction(image)
     gray = image_processing.preprocess_image(image)
     edges = image_processing.linked_edges(gray)
-    
+    cv2.imshow("edge", edges)
+    cv2.waitKey(0)
     # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -251,8 +252,8 @@ def get_center_ellipse_parameters(image):
                 if aspect_ratio < min_aspect_ratio:
                     min_aspect_ratio = aspect_ratio
                     center_ellipse = ellipse
-                cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (255,0,0), 1)
-                print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
+                    #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (255,0,0), 1)
+                    print(f"found elipse {cv2.contourArea(contour)} {aspect_ratio} {angle} {area}")
     # Get image dimensions
     if len(image.shape) == 2:  # Grayscale image
         height, width = image.shape
@@ -288,17 +289,16 @@ def draw_debug_elipse(image, a, b, h, k, angle):
         cv2.circle(image, (int(h),int(k)), 1, (0,0,255), 1)
 
 
-def calculate_score(lane, turn, target):
+def calculate_score(holes, lane, turn, target):
     try:
-        holes = get_bullet_holes(lane, turn)
         image = image_processing.load_image(lane, turn, target)
     except Exception as e:
         print(e)
-        return ""
+        return f"Kiểm tra lại kết nối camera dải số {lane} mục tiêu {target}"
     
     if holes == None:
         print(f"Loạt {turn}, bệ số {lane} Mục tiêu {target} an toàn")
-        return ""
+        return f"Loạt {turn}, bệ số {lane} Mục tiêu {target} an toàn"
     
     (a,b,h,k,angle) = get_center_ellipse_parameters(image)
     total_score = 0
@@ -347,7 +347,7 @@ def calculate_score(lane, turn, target):
         i += 1
     
     message = message + f"\n Tổng: {total_score} điểm"
-    print(message)
+    #print(message)
 
     return message
 
@@ -430,26 +430,26 @@ def compare_and_detect(lane, turn, target):
             if min_bullet_hole_area < area < max_bullet_hole_area: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
                 x, y, w, h = cv2.boundingRect(contour)
                 if not is_hole_already_exist(x, y, w, h):
-                #if True:
                     valid_holes.append((x, y, w, h))
-                    cv2.putText(image_curr_turn, str(f"{area} {x,y,w,h} {aspect_ratio} {circularity}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-                    print(area, w, h, aspect_ratio, circularity)
-                    result = {"name": f"{lane}-{turn}",
-                            "lane": lane,
-                            "turn": turn,
-                            "holes": valid_holes,
-                            "result_text": ""
-                            }
-                    
-                    results.append(result)
 
-    result_text = calculate_score(lane, turn, target)
+    result_text = calculate_score(valid_holes, lane, turn, target)
+    result = {"name": f"{lane}-{turn}-{target}",
+            "lane": lane,
+            "turn": turn,
+            "target": target,
+            "holes": valid_holes,
+            "result_text": result_text
+            }
+                    
+    results.append(result)
+
+    
     for i, result in enumerate(results):
-        if (result["turn"] == turn):
+        if (result["name"] == f"{lane}-{turn}-{target}"):
             results[i]["result_text"] = result_text
             for (x, y, w, h) in result['holes']:
                 cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                #cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     # Step 10: Show the images with bounding boxes and numbers
     if b_debug:
@@ -479,5 +479,5 @@ if __name__=="__main__":
     #img = cam.capture_image(5)
     #img2 = cam.capture_image(3)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 3, "BiaSo4")
+    compare_and_detect(1, 1, "BiaSo4")
     #get_center_ellipse_parameters(img)
