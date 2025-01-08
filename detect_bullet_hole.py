@@ -10,19 +10,23 @@ import camera
 # detect bullet hole params - Bia So 4 - with basic setup cọc mắc màn TODO: define set up voi tripod
 b_debug = False # if True, show debug images, edge, thresh, matches, remove bg, draw debug ellipses
 thresh_value = 50
+
 min_h_w = 6
 max_h_w = 50
 min_bullet_hole_area = 45
 max_bullet_hole_area = 150
 hole_to_hole_distance = 50 
+min_hole_circularity = 0.25
+min_hole_ratio = 0.5
+max_hole_ratio = 2
 
 # ellipse detection params
-min_ratio = 1
-max_ratio = 2
-min_ellipse_area = 100
-max_ellipse_area = 2000000
-min_angle = 60
-max_angle = 120
+min_ratio = 1.1
+max_ratio = 1.2
+min_ellipse_area = 500000
+max_ellipse_area = 1000000
+min_angle = 80
+max_angle = 110
 
 delta_k = 9
 delta_a = 0.5
@@ -305,7 +309,7 @@ def calculate_score(holes, lane, turn, target):
     score = 0
     scores = []
     i = 1
-    message = f"Loạt {turn}, bệ số {lane}:"
+    message = f"Loạt {turn}, bệ số {lane}, mục tiêu {target}:"
     
     for (x, y, w, j) in holes:
         if i==1:
@@ -337,36 +341,34 @@ def calculate_score(holes, lane, turn, target):
             score = 1
         else:
             score = 0
-            continue
+            #continue
         
         result = f"\n Phát {i}: {score} điểm"
         message = message + result
         total_score = total_score + score
         scores.append(score)
-        print(result)
         i += 1
     
     message = message + f"\n Tổng: {total_score} điểm"
-    #print(message)
+    print(message)
 
     return message
-
 
 def compare_and_detect(lane, turn, target):
     try:
         image_prev_turn = image_processing.load_image(lane, turn-1, target)
         image_curr_turn = image_processing.load_image(lane, turn, target)
+
         image_curr_turn = image_processing.gamma_correction(image_curr_turn)
         image_prev_turn = image_processing.gamma_correction(image_prev_turn)
         
         gray_prev = image_processing.preprocess_image(image_prev_turn)
-        gray_curr = image_processing.preprocess_image(image_curr_turn) # giảm được ảnh hưởng của nắng
+        gray_curr = image_processing.preprocess_image(image_curr_turn) # giảm ảnh hưởng của nắng
 
     except Exception as e:
         print(e)
         return None, None
     
-
     # Step 1: Feature detection and matching (ORB in this case)
     orb = cv2.ORB_create()
 
@@ -387,17 +389,12 @@ def compare_and_detect(lane, turn, target):
     # Sort the good matches based on distance
     good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-    # Step 2: Draw matches (for visualization)
-
     # Step 3: Extract matched keypoints
     src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
     # Step 4: Calculate homography matrix to align the images using RANSAC
     M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
-
-    # Inverse the homography matrix to warp the 'after' image to the 'before' image
-    #M_inv = np.linalg.inv(M)
 
     # Step 5: Warp the 'after' image to align with the 'before' image
     c_height, c_width = gray_curr.shape
@@ -414,24 +411,32 @@ def compare_and_detect(lane, turn, target):
     valid_holes = []
     for i, contour in enumerate(contours):
         x, y, w, h = cv2.boundingRect(contour)
-        
-        # Calculate the perimeter and area for circularity check
+        # filtering holes
+        if is_hole_already_exist(x,y,w,h):
+            continue
+        if w < min_h_w or w > max_h_w:
+            continue
+        if h < min_h_w or h > max_h_w:
+            continue
+
+        # continue filtering holes
         perimeter = cv2.arcLength(contour, True)
         area = cv2.contourArea(contour)
-            
+        aspect_ratio = w / h if h != 0 else 0
+        circularity = 4 * np.pi * area / (perimeter ** 2)
         if perimeter == 0:
             continue
+        if area < min_bullet_hole_area or area > max_bullet_hole_area:
+            continue
+        if circularity < min_hole_circularity:
+            continue
+        if min_hole_ratio > aspect_ratio or aspect_ratio > max_hole_ratio:
+            continue
+        print(perimeter, area, circularity, aspect_ratio)
         
-        aspect_ratio = w / h if h != 0 else 0
-        # Calculate circularity
-        circularity = 4 * np.pi * area / (perimeter ** 2)
-            
-        if min_h_w < w < max_h_w and min_h_w < h < max_h_w and 0.5 < aspect_ratio < 2 and circularity > 0.2: 
-            if min_bullet_hole_area < area < max_bullet_hole_area: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
-                x, y, w, h = cv2.boundingRect(contour)
-                if not is_hole_already_exist(x, y, w, h):
-                    valid_holes.append((x, y, w, h))
-
+        # pass all the check? then append to valid_holes
+        valid_holes.append((x, y, w, h))
+    # construct result
     result_text = calculate_score(valid_holes, lane, turn, target)
     result = {"name": f"{lane}-{turn}-{target}",
             "lane": lane,
@@ -443,13 +448,10 @@ def compare_and_detect(lane, turn, target):
                     
     results.append(result)
 
-    
-    for i, result in enumerate(results):
-        if (result["name"] == f"{lane}-{turn}-{target}"):
-            results[i]["result_text"] = result_text
-            for (x, y, w, h) in result['holes']:
-                cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
-                cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+    # draw bounding boxes and annotate with numbers
+    for (x,y,w,h) in valid_holes:
+        cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
+        cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     # Step 10: Show the images with bounding boxes and numbers
     if b_debug:
