@@ -43,9 +43,9 @@ def check_camera_and_open_editor(max_camera):
                 else:
                     detection_label.config(text=f"Đã nhập {len(camera.camera_indice)} camera")            
     
-def show_full_image(lane, turn, target):
-    image1 = image_processing.load_result(lane, turn, target)
-    cv2.imshow(f"Loat {turn}, Be so {lane}, Muc tieu {target}", image1)
+def show_full_image(img, lane, turn):
+    #image1 = image_processing.load_result(lane, turn, target)
+    cv2.imshow(f"Loat {turn}, Be so {lane}", img)
     cv2.waitKey(0)
     #cv2.destroyAllWindows()
 
@@ -59,11 +59,6 @@ def get_result_for_lane(lane, turn):
         result_image, result_text = detect_bullet_hole.compare_and_detect(lane, turn, target)
         result.append((result_image, result_text))
     return result
-
-def display_result(lane, turn):
-    # List to hold images (in this case, we'll simulate with placeholder images)
-    result = get_result_for_lane(lane, num_turn)
-
 
 def add_result_to_frame(lane, turn):
     new_result = get_result_for_lane(lane, turn)
@@ -80,6 +75,9 @@ def add_result_to_frame(lane, turn):
         img_label = tk.Label(frame, image=img)
         img_label.image = img  # Keep a reference to the image
         img_label.pack()
+        # Bind the image click event to the on_image_click function
+        img_label.bind("<Button-1>", lambda event, lane=lane, turn=turn, img=image, text=text: show_full_image(img, lane, turn))
+        
         desc_label = tk.Label(frame, text=text)
         desc_label.pack()
         frame.grid(row=turn-1, column=current_column, padx=10, pady=10)
@@ -89,11 +87,6 @@ def add_result_to_frame(lane, turn):
     # Update the scrollable region of the canvas to include the new images
     content_frame.update_idletasks()  # Update content frame size
     canvas.config(scrollregion=canvas.bbox("all"))  # Update the scroll region
-
-def show_result(turn):
-    
-    for lane in range(1, get_num_lane() + 1):
-        display_result(lane)
     
 def start_shooting():
     if not get_num_lane() > 0:

@@ -11,9 +11,9 @@ import camera
 b_debug = False # if True, show debug images, edge, thresh, matches, remove bg, draw debug ellipses
 thresh_value = 50
 min_h_w = 6
-max_h_w = 30
-min_bullet_hole_area = 45
-max_bullet_hole_area = 150
+max_h_w = 50
+min_bullet_hole_area = 30
+max_bullet_hole_area = 300
 hole_to_hole_distance = 20
 
 # ellipse detection params
@@ -36,7 +36,7 @@ def load_target_params(target):
         thresh_value = 50
 
         min_h_w = 6
-        max_h_w = 35
+        max_h_w = 50
 
         min_bullet_hole_area = 30
         max_bullet_hole_area = 500
@@ -222,11 +222,10 @@ def get_bullet_holes(lane, turn):
 
 
 def get_center_ellipse_parameters(image):
-    image = image_processing.gamma_correction(image)
+    #image = image_processing.gamma_correction(image)
     gray = image_processing.preprocess_image(image)
     edges = image_processing.linked_edges(gray)
-    cv2.imshow("edge", image)
-    cv2.waitKey(0)
+    
     # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -427,7 +426,7 @@ def compare_and_detect(lane, turn, target):
         # Calculate circularity
         circularity = 4 * np.pi * area / (perimeter ** 2)
             
-        if min_h_w < w < max_h_w and min_h_w < h < max_h_w and 0.8 < aspect_ratio < 2 and circularity > 0.5: 
+        if min_h_w < w < max_h_w and min_h_w < h < max_h_w and 0.5 < aspect_ratio < 2 and circularity > 0.2: 
             if min_bullet_hole_area < area < max_bullet_hole_area: #50 - 500 pixels la range cua cac lo dan tu nho den to (bia so 4) neu bia so 8 thi co the nho hon
                 x, y, w, h = cv2.boundingRect(contour)
                 if not is_hole_already_exist(x, y, w, h):
@@ -474,11 +473,11 @@ def compare_and_detect(lane, turn, target):
 
 if __name__=="__main__":
     b_debug = True
-    cam = camera.Camera(1,"BiaSo4Test", 1)
+    #cam = camera.Camera(1,"BiaSo4Test", 1)
     #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4Test-1-1.jpg")
     
     #img = cam.capture_image(5)
     #img2 = cam.capture_image(3)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 3, "BiaSo4Test")
+    compare_and_detect(1, 3, "BiaSo4")
     #get_center_ellipse_parameters(img)

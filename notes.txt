@@ -1,26 +1,15 @@
-- đối với bia số 4: camera set như hiện tại, cách bia 80 - 100cm, góc nghiêng 30 độ, cao ngang giữa chân bia 
-thông số là:
-thresh_diff = 50
-is hole exist check < 50
-10 < w < 45 and 10 < h < 35: 
-100 < area < 500
 
-center ellipse 125, 145, 935, 515, 90
-k += 10*i (tam ellipse)
-a,b cung phai bien thien theo i
-
-khi tripod về sẽ moderate lại các tham số bia số 4
-và tìm tham số đối với bia số 7
-thêm các hàm xử lý base on loại bia 
-
+và tìm tham số đối với bia số 7 (chua test)
 validate lane num chi cho nhap so
-
-update huong dan
-
-khi chup tam dau tien bi toi' do camera lighting chua on dinh
-khi nắng gắt, ảnh chụp bị chói, không thấy rõ chi tiết bia -> ko nhận được ellipse và các thông số lỗ đạn bị sai
 
 kiem tra lai flow nhieu lane, nhieu camera 
 ảnh hưởng từ ánh sáng (nắng) khi nắng chiếu vào camera bị chói
 
 kiểm tra lại hàm remove background
+và hàm ellipse
+
+bia so 7: khoang cach tu camera den bia: 145cm chân bia cách mặt đất 60cm
+lỗ đạn: chia tỉ lệ 80/145 so với bia số 4
+ellipse dọc, area chua biết
+
+TODO urgent: detect ellipse, fine tune image preprocessing and postprocessing, filtering,...
