@@ -35,6 +35,8 @@ results = []
 
 
 def load_target_params(target):
+    global thresh_value, min_h_w, max_h_w, min_bullet_hole_area, max_bullet_hole_area, min_hole_circularity, min_hole_ratio, max_hole_ratio, hole_to_hole_distance
+    global min_ratio, max_ratio, min_ellipse_area, max_ellipse_area, min_angle, max_angle
     if target == "BiaSo4":
         # bullet detection params
         thresh_value = 50
@@ -42,9 +44,11 @@ def load_target_params(target):
         min_h_w = 6
         max_h_w = 50
 
-        min_bullet_hole_area = 45
+        min_bullet_hole_area = 20
         max_bullet_hole_area = 150
-
+        min_hole_circularity = 0.3 #phu thuoc camera angle and distance to target
+        min_hole_ratio = 0.5
+        max_hole_ratio = 2
         hole_to_hole_distance = 50
 
         # ellipse detection params
@@ -59,7 +63,28 @@ def load_target_params(target):
         max_angle = 100
 
     elif target == "BiaSo7":
-        pass
+        thresh_value = 50
+
+        min_h_w = 5
+        max_h_w = 20
+
+        min_bullet_hole_area = 20
+        max_bullet_hole_area = 100
+        min_hole_circularity = 0.15 #phu thuoc camera angle and distance to target
+        min_hole_ratio = 0.5
+        max_hole_ratio = 2
+        hole_to_hole_distance = 20
+
+        # ellipse detection params
+        # BiaSo4 has a close to perfect circle ellipse center
+        min_ratio = 1.1
+        max_ratio = 1.2
+
+        min_ellipse_area = 100
+        max_ellipse_area = 1000000
+
+        min_angle = 80
+        max_angle = 100
 
 def update_variables():
     global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
@@ -387,6 +412,7 @@ def calculate_score(holes, lane, turn, target):
     return message
 
 def compare_and_detect(lane, turn, target):
+    load_target_params(target)
     try:
         image_prev_turn = image_processing.load_image(lane, turn-1, target)
         image_curr_turn = image_processing.load_image(lane, turn, target)
@@ -394,9 +420,10 @@ def compare_and_detect(lane, turn, target):
         processed_curr,_,_,_ = image_processing.process_image(image_curr_turn)
         p_gamma = image_processing.gamma_correction(image_prev_turn)
         c_gamma = image_processing.gamma_correction(image_curr_turn)
-        
-        gray_prev = image_processing.preprocess_image(processed_prev)
-        gray_curr = image_processing.preprocess_image(processed_curr) # giảm ảnh hưởng của nắng
+        z_prev = image_processing.remove_background(processed_prev)
+        z_curr = image_processing.remove_background(processed_curr)
+        gray_prev = image_processing.preprocess_image(z_prev)
+        gray_curr = image_processing.preprocess_image(z_curr) # giảm ảnh hưởng của nắng
 
     except Exception as e:
         print(e)
@@ -425,10 +452,12 @@ def compare_and_detect(lane, turn, target):
     # Step 3: Extract matched keypoints
     src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-
-    # Step 4: Calculate homography matrix to align the images using RANSAC
-    M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
-
+    try:
+        # Step 4: Calculate homography matrix to align the images using RANSAC
+        M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
+    except Exception as e:
+        print(e)
+        return None, None
     # Step 5: Warp the 'after' image to align with the 'before' image
     c_height, c_width = gray_curr.shape
     aligned_before = cv2.warpPerspective(gray_prev, M, (c_width, c_height))
@@ -436,7 +465,7 @@ def compare_and_detect(lane, turn, target):
     diff_image = cv2.absdiff(aligned_before, gray_curr)
 
     # Step 7: Threshold the difference image to highlight changes
-    _, thresh_diff = cv2.threshold(diff_image, thresh_value, 255, cv2.THRESH_BINARY)
+    _, thresh_diff = cv2.threshold(diff_image, 100, 255, cv2.THRESH_BINARY)
 
     # Step 8: Find contours in the thresholded difference image
     contours, _ = cv2.findContours(thresh_diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -454,12 +483,12 @@ def compare_and_detect(lane, turn, target):
 
         # continue filtering holes
         perimeter = cv2.arcLength(contour, True)
-        contour_area = cv2.contourArea(contour)
-        hole_area = w*h
-        aspect_ratio = w / h if h != 0 else 0
-        circularity = 4 * np.pi * contour_area / (perimeter ** 2)
         if perimeter == 0:
             continue
+        contour_area = cv2.contourArea(contour)
+        aspect_ratio = w / h if h != 0 else 0
+        circularity = 4 * np.pi * contour_area / (perimeter ** 2)
+        
         if contour_area < min_bullet_hole_area or contour_area > max_bullet_hole_area:
             continue
         if circularity < min_hole_circularity:
@@ -467,7 +496,7 @@ def compare_and_detect(lane, turn, target):
         if min_hole_ratio > aspect_ratio or aspect_ratio > max_hole_ratio:
             continue
         #print(perimeter, contour_area, circularity, aspect_ratio)
-        print(x,y,w,h, contour_area, hole_area, perimeter, aspect_ratio, circularity)
+        print(x,y,w,h, contour_area)
         # pass all the check? then append to valid_holes
         valid_holes.append((x, y, w, h))
     # construct result
@@ -504,7 +533,7 @@ def compare_and_detect(lane, turn, target):
             print(e)
         cv2.imshow('Bullet Holes Detected', image_curr_turn)
         cv2.imshow('Aligned Before Image', aligned_before)
-        cv2.imshow('Difference Image', gray_curr)
+        cv2.imshow('Difference Image', diff_image)
         cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -513,11 +542,11 @@ def compare_and_detect(lane, turn, target):
 
 if __name__=="__main__":
     b_debug = True
-    #cam = camera.Camera(1,"BiaSo4Test", 1)
+    cam = camera.Camera(1,"BiaSo4", 1)
     #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4Test-1-1.jpg")
     
-    #img = cam.capture_image(5)
+    #img = cam.capture_image(3)
     #img2 = cam.capture_image(3)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 1, "BiaSo7")
+    compare_and_detect(1, 1, "BiaSo4")
     #get_center_ellipse_parameters(img)

@@ -7,7 +7,7 @@ import camera
 import image_processing
 import cv2
 import detect_bullet_hole
-
+# https://viblo.asia/p/u-net-kien-truc-manh-me-cho-segmentation-1Je5Em905nL
 # Create main window
 root = tk.Tk()
 root.title("TIỂU ĐOÀN 1038 - PHẦN MỀM BÁO BIA TỰ ĐỘNG")
