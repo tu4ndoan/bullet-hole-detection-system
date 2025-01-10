@@ -112,7 +112,7 @@ def preprocess_image(image):
     
     # Apply histogram equalization for better contrast
     gray = cv2.equalizeHist(gray)
-    gray = cv2.blur(gray, (3,3))
+    gray = cv2.GaussianBlur(gray, (3,3), 0)
 
     return gray
 
@@ -177,7 +177,7 @@ def linked_edges(gray_equalized):
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
         cv2.THRESH_BINARY, 
         11, 
-        2
+        5
     )
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
