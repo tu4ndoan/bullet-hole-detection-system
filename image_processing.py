@@ -116,33 +116,32 @@ def preprocess_image(image):
 
     return gray
 
-def process_image(image, gamma=1.2, alpha=1.5, beta=30):
-    # 1. Gamma Correction
-    def adjust_gamma(image, gamma):
-        inv_gamma = 1.0 / gamma
-        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
-        return cv2.LUT(image, table)
+def adjust_gamma(image, gamma):
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+    return cv2.LUT(image, table)
 
     # 2. Unsharp Masking for sharpening
-    def unsharp_mask(image):
-        blurred = cv2.GaussianBlur(image, (5, 5), 1.5)
-        return cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
+def unsharp_mask(image):
+    blurred = cv2.GaussianBlur(image, (5, 5), 1.5)
+    return cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
 
     # 3. Adaptive Thresholding
-    def adaptive_threshold(image):
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return cv2.adaptiveThreshold(gray_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+def adaptive_threshold(image):
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return cv2.adaptiveThreshold(gray_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
     # 4. CLAHE (Contrast Limited Adaptive Histogram Equalization)
-    def apply_clahe(image):
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        return clahe.apply(gray_image)
+def apply_clahe(image):
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    return clahe.apply(gray_image)
 
     # 5. Contrast and Brightness Adjustment
-    def adjust_contrast_brightness(image, alpha, beta):
-        return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+def adjust_contrast_brightness(image, alpha, beta):
+    return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
 
+def process_image(image, gamma=1.2, alpha=1.5, beta=30):
     # Step 1: Apply Gamma Correction
     image = adjust_gamma(image, gamma)
 
@@ -207,9 +206,6 @@ def gamma_correction(image, gamma=0.5):
     inv_gamma = 1.0 / gamma
     table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
     return cv2.LUT(image, table)
-
-import cv2
-import numpy as np
 
 def preprocess_image(image):
     """
@@ -365,7 +361,7 @@ if __name__ == "__main__":
         print("Target not detected.")
 
     
-    image = cv2.imread('./HinhAnh/DaiBan1/BiaSo4Test-1-3.jpg')
+    image = cv2.imread('./HinhAnh/DaiBan1/BiaSo4-1-9.jpg')
 
     # Process image
     processed_image, clahe_image, edges_image, thresh_image = process_image(image)

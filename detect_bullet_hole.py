@@ -42,7 +42,7 @@ def load_target_params(target):
         # bullet detection params
         thresh_value = 50
 
-        min_h_w = 10 #14
+        min_h_w = 5 #14
         max_h_w = 25 #20
 
         min_bullet_hole_area = 100 #139
@@ -63,28 +63,28 @@ def load_target_params(target):
         max_angle = 100
         print("loaded")
     elif target == "BiaSo7":
+        # bullet detection params
         thresh_value = 50
 
-        min_h_w = 5
-        max_h_w = 20
+        min_h_w = 5 #8
+        max_h_w = 25 #15
 
-        min_bullet_hole_area = 20
-        max_bullet_hole_area = 100
-        min_hole_circularity = 0.15 #phu thuoc camera angle and distance to target
-        min_hole_ratio = 0.5
-        max_hole_ratio = 2
-        hole_to_hole_distance = 20
+        min_bullet_hole_area = 25 #35
+        max_bullet_hole_area = 110 #102
+        min_hole_circularity = 0.3 # 0.59
+        min_hole_ratio = 0.5 # 0.9
+        max_hole_ratio = 1.5 # 1.36
+        hole_to_hole_distance = 50 # deprecated
 
         # ellipse detection params
-        # BiaSo4 has a close to perfect circle ellipse center
-        min_ratio = 1.1
-        max_ratio = 1.2
+        min_ratio = 1
+        max_ratio = 2
 
-        min_ellipse_area = 100
-        max_ellipse_area = 1000000
+        min_ellipse_area = 50000
+        max_ellipse_area = 9000000
 
-        min_angle = 80
-        max_angle = 100
+        min_angle = 0
+        max_angle = 360
 
 def update_variables():
     global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
@@ -301,7 +301,7 @@ def get_center_ellipse_parameters(image):
                 min_aspect_ratio = aspect_ratio
 
                 # Draw the ellipse on the image (for visualization purposes)
-                #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0, 255, 0), 2)  # Green color, thickness 2
+                cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0, 255, 0), 2)  # Green color, thickness 2
             print(f"Found ellipse: Area={area}, Aspect Ratio={aspect_ratio}, Angle={angle}, Position=({h}, {k})")
     
 
@@ -318,7 +318,7 @@ def get_center_ellipse_parameters(image):
         angle = center_ellipse[2]   # Angle
         a = a // 4  # Scale down major axis for your use case
         b = b // 4  # Scale down minor axis for your use case
-    #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0,0, 255), 2)  
+    cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0,0, 255), 2)  
     return int(a), int(b), int(h), int(k), int(angle)
 
 
@@ -333,7 +333,7 @@ def draw_debug_elipse(image, a, b, h, k, angle, target):
     if target == "BiaSo4":
         for i in range(1,6): # bia so 4
         # Draw the ellipse on the image
-            if i == 1:
+            if i == 1: 
                 k -= 5*i
                 a += 5*i
                 b += 5*i
@@ -533,9 +533,9 @@ def compare_and_detect(lane, turn, target):
         except Exception as e:
             print(e)
         cv2.imshow('Bullet Holes Detected', image_curr_turn)
-        #cv2.imshow('Aligned Before Image', aligned_before)
-        #cv2.imshow('Difference Image', diff_image)
-        #cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
+        cv2.imshow('Aligned Before Image', aligned_before)
+        cv2.imshow('Difference Image', diff_image)
+        cv2.imshow('Thresholded Difference (Bullet Hole)', thresh_diff)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
@@ -543,11 +543,11 @@ def compare_and_detect(lane, turn, target):
 
 if __name__=="__main__":
     b_debug = True
-    #cam = camera.Camera(1,"BiaSo4", 1)
+    cam = camera.Camera(1,"BiaSo7", 1)
     #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4Test-1-1.jpg")
     
-    #img = cam.capture_image(8)
+    img = cam.capture_image(5)
     #img2 = cam.capture_image(9)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 9, "BiaSo4")
+    compare_and_detect(1, 5, "BiaSo7")
     #get_center_ellipse_parameters(img)
