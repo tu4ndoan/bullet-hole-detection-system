@@ -58,21 +58,18 @@ def get_notebook_tab(lane):
 def get_result_for_lane(lane, turn):
     result = []
     for target in camera.targets:
-        result_image, result_text = detect_bullet_hole.compare_and_detect(lane, turn, target)
-        result.append((result_image, result_text))
-        print(result_text)
+        result_image, result_text, total_score = detect_bullet_hole.compare_and_detect(lane, turn, target)
+        result.append((result_image, result_text, total_score))
+        print(f"loạt {turn} bệ số {lane}: {result_text}-{total_score}")
     return result
 
 def add_result_to_frame(lane, turn):
     new_result = get_result_for_lane(lane, turn)
-    print(len(new_result))
     canvas, content_frame, current_column = get_canvas_by_lane(lane)
     # Add the new images to the content_frame
     current_column = 0
     current_row = 0
-    for image, text in new_result:
-        print(f"Adding image to frame {current_column} {current_row}")
-
+    for image, text, _ in new_result:
         result_image_resized = cv2.resize(image, (200, 200))
         
         result_image_pil = Image.fromarray(cv2.cvtColor(result_image_resized, cv2.COLOR_BGR2RGB))
@@ -135,7 +132,10 @@ def add_shooting_lane():
     notebook.add(shooting_lane, text=f"Dải bắn {lane_number}")
     
     label = tk.Label(shooting_lane, text=f"Dải bắn {lane_number}")
-    label.pack(pady=20)
+    label.pack(pady=5)
+
+    remove_btn = tk.Button(shooting_lane, text="Xóa dải bắn", command=lambda: remove_shooting_lane())
+    remove_btn.pack(pady=5)
 
     # Create the canvas that will hold all the images
     canvas = tk.Canvas(shooting_lane)
@@ -158,9 +158,8 @@ def add_shooting_lane():
     # Show a message box confirming the addition of the new lane
     messagebox.showinfo("Thông báo", f"Đã thêm 1 dải bắn, tổng cộng {get_num_lane()} dải bắn")
 
-
-def remove_shooting_lane(lane_num):
-    lane = notebook.tabs()[lane_num]
+def remove_shooting_lane():
+    lane = get_current_tab()
     notebook.forget(lane)
 
 def add_shooting_turn():
@@ -178,9 +177,9 @@ def shooting_turn_complete():
     """
     global num_turn
     # capture the target after each shooting turn
-    if not b_debug:
+    if not b_debug.get():
         camera.parallel_capture(num_turn)
-        cv2.waitKey(1000)
+        cv2.waitKey(5000)
     # bao bia
     for lane in range(1, get_num_lane()+1):
         add_result_to_frame(lane, num_turn)
@@ -205,36 +204,112 @@ def open_result_folder():
 def view_all_camera():
     camera.view_all_camera()
 
+def view_result(turn):
+    # create a new window to hold result for all lane
+    # Create the canvas that will hold all the images
+    res_win = tk.Toplevel(root)
+    res_can = tk.Canvas(res_win)
+    title = f"Kết quả loạt {turn}"
+    res_win.title(title)
+    res_win.geometry("800x600")
+    res_can.pack(side="left", fill="both", expand=True)
+
+    # Create a horizontal scrollbar for the canvas
+    scrollbar = ttk.Scrollbar(res_can, orient="horizontal", command=res_can.xview)
+    scrollbar.pack(side="bottom", fill="x")
+    v_scrollbar = ttk.Scrollbar(res_can, orient="vertical", command=res_can.yview)
+    v_scrollbar.pack(side="right", fill="y")
+    res_can.configure(xscrollcommand=scrollbar.set)
+    res_can.configure(yscrollcommand=v_scrollbar.set)
+    # Create a frame inside the canvas to hold the images
+    content_frame = tk.Frame(res_can)
+    res_can.create_window((0, 0), window=content_frame, anchor="nw")
+    for lane in range(1, get_num_lane()+1):
+        top_frame = tk.Frame(content_frame)
+        label = tk.Label(top_frame, text=f"Bệ số {lane}")
+        label.pack()
+        top_frame.grid(row=0, column=lane-1, padx=10, pady=10)
+        current_row = 1
+        # each lane, get the result and display
+        total_score = 0
+        
+        for target in camera.targets: 
+            # each lane has N targets, load N images, grid row = 0, 1, 2
+            # row 3 is total score of all targets of this lane, turn
+            target_result = None
+            for result in detect_bullet_hole.results:
+                print("for loop")
+                if result["name"] == f"{lane}-{turn}-{target}":
+                    target_result = result
+            total_score += target_result["total_score"] # total score (all targets) of this lane
+            text = target_result["result_text"]
+            image = image_processing.load_result(lane, turn, target)
+            result_image_resized = cv2.resize(image, (200, 200))
+            
+            result_image_pil = Image.fromarray(cv2.cvtColor(result_image_resized, cv2.COLOR_BGR2RGB))
+            img = ImageTk.PhotoImage(result_image_pil)
+            
+            frame = tk.Frame(content_frame)
+            img_label = tk.Label(frame, image=img)
+            img_label.image = img  # Keep a reference to the image
+            img_label.pack()
+            
+            label = tk.Label(frame, text=text)
+            label.pack()
+            # Bind the image click event to the on_image_click function
+            img_label.bind("<Button-1>", lambda event, lane=lane, turn=turn, img=image: show_full_image(img, lane, turn))
+            frame.grid(row=current_row, column=lane-1, padx=10, pady=10)
+            current_row += 1
+        # Update the scrollable region of the canvas to include the new images
+        total_score_frame = tk.Frame(content_frame)
+        score_label = tk.Label(total_score_frame, text=total_score)
+        score_label.pack()
+        total_score_frame.grid(row=current_row, column=lane-1, padx=10, pady=10)
+    content_frame.update_idletasks()  # Update content frame size
+    res_can.config(scrollregion=res_can.bbox("all"))  # Update the scroll region
+
+
+
+def toggle_debug():
+    if b_debug.get():
+        print("Bạn đang kích hoạt Chế độ debug để xem các phân tích hình ảnh chuyên môn cao của computer vision, nếu bạn không phải chuyên gia hãy tắt chế độ này.")
+    else:
+        print("Chế độ debug đã tắt.")
+    detect_bullet_hole.b_debug = b_debug.get()
+
 # Create and pack buttons
 start_shooting_btn = tk.Button(root, text="Bắt đầu bắn", command=start_shooting)
-start_shooting_btn.pack(padx=10, side="left")
+start_shooting_btn.pack(padx=5, side="left")
 
 add_shooting_lane_btn = tk.Button(root, text="Thêm Dải Bắn", command=add_shooting_lane)
-add_shooting_lane_btn.pack(padx=10, side="left")
+add_shooting_lane_btn.pack(padx=5, side="left")
 
 add_shooting_turn_btn = tk.Button(root, text="Bắt đầu bắn loạt tiếp theo", command=add_shooting_turn)
-add_shooting_turn_btn.pack(padx=10, side="left")
+add_shooting_turn_btn.pack(padx=5, side="left")
 
 shooting_turn_complete_btn = tk.Button(root, text="Báo bia", command=shooting_turn_complete)
-shooting_turn_complete_btn.pack(padx=10, side="left")
+shooting_turn_complete_btn.pack(padx=5, side="left")
 
 edit_variables_btn = tk.Button(root, text="Mở thư mục Kết Quả", command=open_result_folder)
-edit_variables_btn.pack(padx=10, side="left")
+edit_variables_btn.pack(padx=5, side="left")
+
+view_result_btn = tk.Button(root, text=f"Xem kết quả loạt {num_turn}", command=lambda: view_result(num_turn))
+view_result_btn.pack(padx=5, side="left")
 
 add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(max_camera))# cho phép nhập max camera
-add_camera_btn.pack(padx=10, side="left")
+add_camera_btn.pack(padx=5, side="left")
 
 check_camera_btn = tk.Button(root, text="Kiểm tra camera", command=view_all_camera)
-check_camera_btn.pack(padx=10, side="left")
+check_camera_btn.pack(padx=5, side="left")
 
 detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera.camera_indice)} camera đã thêm")
-detection_label.pack(pady=20)
+detection_label.pack(pady=5)
 
 
 # Create a checkbox widget
-checkbox = tk.Checkbutton(root, text="debug mode", variable=b_debug)
+checkbox = tk.Checkbutton(root, text="debug mode", variable=b_debug, command=toggle_debug)
 
 # Pack the checkbox onto the window
-checkbox.pack(padx=10, side="left")
+checkbox.pack(padx=5, side="left")
 
 root.mainloop()

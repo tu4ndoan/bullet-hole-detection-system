@@ -184,23 +184,24 @@ def is_hole_inside_ellipse(x, y, h, k, a, b, angle):
     else:
         return False
 
-def is_hole_already_exist(x, y, w, h):
+def is_hole_already_exist(lane, target, x, y, w, h):
     for result in results:
-        for i, hole in enumerate(result["holes"]):  # Use enumerate to get the index
-            (a, b, c, d) = hole
-            # Coordinates of the two scores
-            hole1 = np.array([x, y])
-            hole2 = np.array([a, b])
+        if (result["lane"] == lane and result["target"] == target):
+            for i, hole in enumerate(result["holes"]):  # Use enumerate to get the index
+                (a, b, c, d) = hole
+                # Coordinates of the two scores
+                hole1 = np.array([x, y])
+                hole2 = np.array([a, b])
 
-            # Calculate Euclidean distance
-            distance = np.linalg.norm(hole2 - hole1)
-            if distance < hole_to_hole_distance:
-                if (w*h >= c*d):
-                    # Hole exists, update the hole
-                    result["holes"][i] = (x, y, w, h)  # Update the hole at index i
-                    return True
-                else:
-                    return True
+                # Calculate Euclidean distance
+                distance = np.linalg.norm(hole2 - hole1)
+                if distance < hole_to_hole_distance:
+                    if (w*h >= c*d):
+                        # Hole exists, update the hole
+                        result["holes"][i] = (x, y, w, h)  # Update the hole at index i
+                        return True
+                    else:
+                        return True
     return False
 
 def circularity_check(image,x, y, r):
@@ -250,7 +251,7 @@ def get_bullet_holes(lane, turn, target):
             return result["holes"]
 
 
-def get_center_ellipse_parameters(image):
+def get_center_ellipse_parameters(image, target):
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
@@ -259,9 +260,7 @@ def get_center_ellipse_parameters(image):
     adaptive_thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
     # Use edge detection (Canny)
     edges = cv2.Canny(adaptive_thresh, 150, 150)
-    # Find contours
-    #cv2.imshow("edge", edges)
-    #cv2.waitKey(0)
+    
     # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -301,16 +300,20 @@ def get_center_ellipse_parameters(image):
                 min_aspect_ratio = aspect_ratio
 
                 # Draw the ellipse on the image (for visualization purposes)
-                cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0, 255, 0), 2)  # Green color, thickness 2
-            print(f"Found ellipse: Area={area}, Aspect Ratio={aspect_ratio}, Angle={angle}, Position=({h}, {k})")
+                #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0, 255, 0), 2)  # Green color, thickness 2
+            print(f"Found ellipse: Area={area}, Aspect Ratio={aspect_ratio}, Angle={angle}, Position=({h}, {k} Axes=({a//4}, {b//4})")
     
 
     # Get image dimensions
     height, width = image.shape[:2]
 
     # Default values for ellipse parameters in case no ellipse is found
-    h, k = width // 2, height // 2
-    a, b, angle = 100, 130, 90  # Default ellipse parameters
+    h, k = int(width // 2), int(height // 2)
+
+    if target == "BiaSo4":
+        a, b, h, k, angle = 74, 84, 965, 484, 90 #default if no ellipse found
+    elif target == "BiaSo7":
+        a, b, h, k, angle = 74, 50, h, k, 90 #default if no ellipse found
 
     if center_ellipse:
         (h, k) = center_ellipse[0]  # Center
@@ -359,7 +362,7 @@ def calculate_score(holes, lane, turn, target):
         print(f"Loạt {turn}, bệ số {lane} Mục tiêu {target} an toàn")
         return f"Loạt {turn}, bệ số {lane} Mục tiêu {target} an toàn"
     try:
-        (a,b,h,k,angle) = get_center_ellipse_parameters(image)
+        (a,b,h,k,angle) = get_center_ellipse_parameters(image, target)
     except Exception as e:
         print(e)
         return f"Không thể xác định elipse trung tâm"
@@ -410,7 +413,7 @@ def calculate_score(holes, lane, turn, target):
     message = message + f"\n Tổng: {total_score} điểm"
     print(message)
 
-    return message
+    return total_score, message
 
 def compare_and_detect(lane, turn, target):
     load_target_params(target)
@@ -461,7 +464,11 @@ def compare_and_detect(lane, turn, target):
         return None, None
     # Step 5: Warp the 'after' image to align with the 'before' image
     c_height, c_width = gray_curr.shape
-    aligned_before = cv2.warpPerspective(gray_prev, M, (c_width, c_height))
+    try:
+        aligned_before = cv2.warpPerspective(gray_prev, M, (c_width, c_height))
+    except Exception as e:
+        print(e)
+        return None, None
     # Step 6: Calculate the absolute difference between the images
     diff_image = cv2.absdiff(aligned_before, gray_curr)
 
@@ -475,7 +482,7 @@ def compare_and_detect(lane, turn, target):
     for i, contour in enumerate(contours):
         x, y, w, h = cv2.boundingRect(contour)
         # filtering holes
-        if is_hole_already_exist(x,y,w,h):
+        if is_hole_already_exist(lane, target, x,y,w,h):
             continue
         if w < min_h_w or w > max_h_w:
             continue
@@ -501,12 +508,13 @@ def compare_and_detect(lane, turn, target):
         # pass all the check? then append to valid_holes
         valid_holes.append((x, y, w, h))
     # construct result
-    result_text = calculate_score(valid_holes, lane, turn, target)
+    total_score, result_text = calculate_score(valid_holes, lane, turn, target)
     result = {"name": f"{lane}-{turn}-{target}",
             "lane": lane,
             "turn": turn,
             "target": target,
             "holes": valid_holes,
+            "total_score": total_score,
             "result_text": result_text
             }
                     
@@ -515,20 +523,20 @@ def compare_and_detect(lane, turn, target):
     # draw bounding boxes and annotate with numbers
     for (x,y,w,h) in valid_holes:
         cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
-        #cv2.putText(image_curr_turn, str(f"{x,y}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-        cv2.putText(image_curr_turn, str(f"loat {turn-4}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        text = f"Loat {turn}"
+        cv2.putText(image_curr_turn, text, (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         
 
     image_processing.save_image(image_curr_turn, lane, turn, target)
     # Step 10: Show the images with bounding boxes and numbers (debug only)
-    if b_debug:
+    if False:
         # Show the matched keypoints
         image_matches = cv2.drawMatches(gray_prev, kp1, gray_curr, kp2, good_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
         plt.imshow(image_matches)
         plt.title('Feature Matches')
         plt.show()
         try:
-            (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn)
+            (a, b, h, k, angle) = get_center_ellipse_parameters(image_curr_turn, target)
             draw_debug_elipse(image_curr_turn,a, b, h, k, angle, target)
         except Exception as e:
             print(e)
@@ -539,15 +547,15 @@ def compare_and_detect(lane, turn, target):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
-    return image_curr_turn, result_text
+    return image_curr_turn, result_text, total_score
 
 if __name__=="__main__":
     b_debug = True
-    cam = camera.Camera(1,"BiaSo7", 1)
+    #cam = camera.Camera(1,"BiaSo7", 1)
     #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4Test-1-1.jpg")
     
-    img = cam.capture_image(5)
+    #img = cam.capture_image(5)
     #img2 = cam.capture_image(9)
     #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 5, "BiaSo7")
+    compare_and_detect(1, 6, "BiaSo4")
     #get_center_ellipse_parameters(img)
