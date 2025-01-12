@@ -15,8 +15,8 @@ max_h_w = 50
 min_bullet_hole_area = 45
 max_bullet_hole_area = 150
 hole_to_hole_distance = 50 
-min_hole_circularity = 0.3 #phu thuoc camera angle and distance to target
-min_hole_ratio = 0.5
+min_hole_circularity = 0.1 #phu thuoc camera angle and distance to target
+min_hole_ratio = 0.1
 max_hole_ratio = 2
 
 # ellipse detection params
@@ -38,16 +38,16 @@ def load_target_params(target):
     global min_ratio, max_ratio, min_ellipse_area, max_ellipse_area, min_angle, max_angle
     if target == "BiaSo4":
         # bullet detection params
-        thresh_value = 100
+        thresh_value = 50
 
-        min_h_w = 2 #14
+        min_h_w = 1 #14
         max_h_w = 30 #20
 
-        min_bullet_hole_area = 10 #139
-        max_bullet_hole_area = 100 #201
-        min_hole_circularity = 0.3 # 0.41
-        min_hole_ratio = 0.5 # 0.9
-        max_hole_ratio = 1.9 # 1.21
+        min_bullet_hole_area = 5 #139
+        max_bullet_hole_area = 200 #201
+        min_hole_circularity = 0.1 # 0.41
+        min_hole_ratio = 0.1 # 0.9
+        max_hole_ratio = 2 # 1.21
         hole_to_hole_distance = 50 # deprecated
 
         # ellipse detection params
@@ -67,10 +67,10 @@ def load_target_params(target):
         min_h_w = 1 #8
         max_h_w = 15 #15
 
-        min_bullet_hole_area = 10 #35
+        min_bullet_hole_area = 1 #35
         max_bullet_hole_area = 50 #102
         min_hole_circularity = 0.1 # 0.59
-        min_hole_ratio = 0.5 # 0.9
+        min_hole_ratio = 0.1 # 0.9
         max_hole_ratio = 2 # 1.36
         hole_to_hole_distance = 50 # deprecated
 
@@ -220,26 +220,27 @@ def get_center_ellipse_parameters(image, target):
 
                 # Draw the ellipse on the image (for visualization purposes)
                 #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0, 255, 0), 2)  # Green color, thickness 2
-            print(f"Found ellipse: Area={area}, Aspect Ratio={aspect_ratio}, Angle={angle}, Position=({h}, {k} Axes=({a//4}, {b//4})")
+           # print(f"Found ellipse: Area={area}, Aspect Ratio={aspect_ratio}, Angle={angle}, Position=({h}, {k} Axes=({a//4}, {b//4})")
     
 
     # Get image dimensions
     height, width = image.shape[:2]
 
     # Default values for ellipse parameters in case no ellipse is found
-    h, k = int(width // 2), int(height // 2)
+    center_h, center_k = int(width // 2), int(height // 2)
 
     if target == "BiaSo4":
-        a, b, h, k, angle = 74, 84, 965, 484, 90 #default if no ellipse found
+        a, b, h, k, angle = 74, 84, center_h, center_k, 90 #default if no ellipse found
+        if center_ellipse:
+            (h, k) = center_ellipse[0]  # Center
+            (a, b) = center_ellipse[1]  # Axes
+            angle = center_ellipse[2]   # Angle
+            a = a // 4  # Scale down major axis for your use case
+            b = b // 4  # Scale down minor axis for your use case
     elif target == "BiaSo7":
-        a, b, h, k, angle = 74, 50, h, k, 90 #default if no ellipse found
+        a, b, h, k, angle = 74, 50, center_h, int(center_k//2), 90 #default if no ellipse found
 
-    if center_ellipse:
-        (h, k) = center_ellipse[0]  # Center
-        (a, b) = center_ellipse[1]  # Axes
-        angle = center_ellipse[2]   # Angle
-        a = a // 4  # Scale down major axis for your use case
-        b = b // 4  # Scale down minor axis for your use case
+    
     #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0,0, 255), 2)  
     return int(a), int(b), int(h), int(k), int(angle)
 
@@ -265,6 +266,22 @@ def draw_debug_elipse(image, a, b, h, k, angle, target):
                 k += 2
                 a -= 0.5*i
                 b -= 0.5*i
+            cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
+    elif target == "BiaSo7":
+        for i in range(1,11):
+            if i == 1: 
+                k -= 1*i
+                a += 1*i
+                b += 1*i
+                cv2.circle(image, (int(h),int(k-5)), 1, (0,0,255), 2)
+            elif  i > 1:
+                k += 1*i
+                a += 1*i
+                b += 1*i
+            if i >= 3:
+                k += 1*i
+                a -= 1*i
+                b -= 1*i
             cv2.ellipse(image, (int(h),int(k)), (int(a)*i,int(b)*i), angle, start_angle, end_angle, (0, 255, 0), 2)
 
 def calculate_score(holes, lane, turn, target):
@@ -337,13 +354,10 @@ def compare_and_detect(lane, turn, target):
         image_prev_turn = image_processing.load_image(lane, turn-1, target)
         image_curr_turn = image_processing.load_image(lane, turn, target)
 
-        #image_prev_turn = image_processing.process_image(image_prev_turn)
-        #image_curr_turn = image_processing.process_image(image_curr_turn)
-
         gray_prev = image_processing.preprocess_image(image_prev_turn)
         gray_curr = image_processing.preprocess_image(image_curr_turn)
 
-        gray_prev = cv2.fastNlMeansDenoising(gray_prev, None, 15, 7, 21)
+        gray_prev = cv2.fastNlMeansDenoising(gray_prev, None, 15, 7, 21) # denoise 15 là đẹp
         gray_curr = cv2.fastNlMeansDenoising(gray_curr, None, 15, 7, 21)
 
     except Exception as e:
@@ -416,15 +430,15 @@ def compare_and_detect(lane, turn, target):
         # Calculate aspect ratio
         aspect_ratio1 = max(a, b) / min(a, b)
 
-        if aspect_ratio1 > 2:
+        if aspect_ratio1 > 3:
             continue
         x, y, w, h = cv2.boundingRect(contour)
         # filtering holes
         if is_hole_already_exist(lane, target, x,y,w,h):
             continue
-        if w < min_h_w or w > max_h_w:
+        #if w < min_h_w or w > max_h_w:
             continue
-        if h < min_h_w or h > max_h_w:
+        #if h < min_h_w or h > max_h_w:
             continue
 
         # continue filtering holes
@@ -442,10 +456,11 @@ def compare_and_detect(lane, turn, target):
         if min_hole_ratio > aspect_ratio or aspect_ratio > max_hole_ratio:
             continue
         #print(perimeter, contour_area, circularity, aspect_ratio)
-        print(x,y,w,h, contour_area, aspect_ratio, circularity)
+        #print(x,y,w,h, contour_area, aspect_ratio, circularity)
+        print(f"x:{x} - y:{y} - w:{w} - h:{h} - contour_area:{contour_area:.2f}- perimeter:{perimeter:.2f} - aspect_ratio:{aspect_ratio:.2f} - circ:{circularity:.2f} - aspect_ratio1:{aspect_ratio1:.2f}")
         # pass all the check? then append to valid_holes
         valid_holes.append((x, y, w, h))
-        cv2.putText(image_curr_turn, str(f"{aspect_ratio1}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        cv2.putText(image_curr_turn, str(f"{turn}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     # construct result
     total_score, result_text = calculate_score(valid_holes, lane, turn, target)
     result = {"name": f"{lane}-{turn}-{target}",
@@ -493,9 +508,9 @@ if __name__=="__main__":
     cam = camera.Camera(1,"BiaSo4", 1)
     cam2 = camera.Camera(1,"BiaSo7", 2)
     
-    #img = cam.capture_image(3)
-    #img2 = cam2.capture_image(3)
+    img = cam.capture_image(5)
+    img2 = cam2.capture_image(5)
 
-    compare_and_detect(1, 1, "BiaSo4")
-    compare_and_detect(1, 1, "BiaSo7")
+    compare_and_detect(1, 5, "BiaSo4")
+    compare_and_detect(1, 5, "BiaSo7")
 
