@@ -6,83 +6,6 @@ import camera
 from tkinter import ttk
 
 
-def update_variables():
-    global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
-    
-    blur_value = blur_slider.get()
-    adaptive_thresh_value = adaptive_thresh_slider.get()
-    binary_thresh_value = binary_thresh_slider.get()
-    edge_lower_value = edge_lower_slider.get()
-    edge_higher_value = edge_higher_slider.get()
-    
-    # Update the result label to display the updated values
-    result_label.config(text=f"Updated Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                            f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
-
-# Create a new Toplevel window to edit variables
-def open_variable_editor():
-    global blur_slider, adaptive_thresh_slider, binary_thresh_slider, edge_lower_slider, edge_higher_slider, result_label
-    
-    # Create a new Toplevel window
-    top = tk.Toplevel()
-    top.title("Global Variables Editor")
-    
-    # Create a canvas widget
-    canvas = tk.Canvas(top)
-    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    # Create a scrollbar widget
-    scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
-    scrollbar.pack(side=tk.RIGHT, fill="y")
-
-    # Configure the canvas to work with the scrollbar
-    canvas.configure(yscrollcommand=scrollbar.set)
-    
-    # Create a frame inside the canvas to contain all widgets
-    canvas_frame = ttk.Frame(canvas)
-    canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
-
-    # Add all the sliders (trackbars) inside this frame
-    ttk.Label(canvas_frame, text="Blur Value:").pack(pady=5)
-    blur_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
-    blur_slider.set(blur_value)
-    blur_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Adaptive Threshold Value:").pack(pady=5)
-    adaptive_thresh_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
-    adaptive_thresh_slider.set(adaptive_thresh_value)
-    adaptive_thresh_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Binary Threshold Value:").pack(pady=5)
-    binary_thresh_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    binary_thresh_slider.set(binary_thresh_value)
-    binary_thresh_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Edge Lower Value:").pack(pady=5)
-    edge_lower_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    edge_lower_slider.set(edge_lower_value)
-    edge_lower_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Edge Higher Value:").pack(pady=5)
-    edge_higher_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    edge_higher_slider.set(edge_higher_value)
-    edge_higher_slider.pack(pady=5)
-
-    # Apply Button
-    apply_button = ttk.Button(canvas_frame, text="Apply Variables", command=update_variables)
-    apply_button.pack(pady=20)
-
-    # Label to show updated values
-    result_label = ttk.Label(canvas_frame, text=f"Current Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                                               f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
-    result_label.pack(pady=10)
-
-    # Update scroll region whenever the content changes
-    canvas_frame.update_idletasks()
-    canvas.config(scrollregion=canvas.bbox("all"))
-
-    top.geometry("350x600")
-
 # image load/save
 def load_image(lane, turn, target):
     image = cv2.imread(f'./HinhAnh/DaiBan{lane}/{target}-{lane}-{turn}.jpg', 1)
@@ -111,8 +34,10 @@ def preprocess_image(image):
     gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
     
     # Apply histogram equalization for better contrast
-    gray = cv2.equalizeHist(gray)
-    gray = cv2.GaussianBlur(gray, (3,3), 0)
+    #gray = cv2.equalizeHist(gray)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    gray =  clahe.apply(gray)
+    gray = cv2.GaussianBlur(gray, (5,5), 0)
 
     return gray
 
@@ -141,7 +66,33 @@ def apply_clahe(image):
 def adjust_contrast_brightness(image, alpha, beta):
     return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
 
-def process_image(image, gamma=1.2, alpha=1.5, beta=30):
+def process_image(image, gamma=1.2, alpha=1.5, beta=0):
+    # 1. Gamma Correction
+    def adjust_gamma(image, gamma):
+        inv_gamma = 1.0 / gamma
+        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+        return cv2.LUT(image, table)
+
+    # 2. Unsharp Masking for sharpening
+    def unsharp_mask(image):
+        blurred = cv2.GaussianBlur(image, (5, 5), 1.5)
+        return cv2.addWeighted(image, 1.5, blurred, -0.5, 0)
+
+    # 3. Adaptive Thresholding
+    def adaptive_threshold(image):
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return cv2.adaptiveThreshold(gray_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
+    # 4. CLAHE (Contrast Limited Adaptive Histogram Equalization)
+    def apply_clahe(image):
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        return clahe.apply(gray_image)
+
+    # 5. Contrast and Brightness Adjustment
+    def adjust_contrast_brightness(image, alpha, beta):
+        return cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
     # Step 1: Apply Gamma Correction
     image = adjust_gamma(image, gamma)
 
@@ -161,8 +112,7 @@ def process_image(image, gamma=1.2, alpha=1.5, beta=30):
     thresh_image = adaptive_threshold(image)
 
     # Return processed image (you can return all or choose one of the results depending on use)
-    return image, image_clahe, edges, thresh_image
-
+    return image
 
 def linked_edges(gray_equalized):
     
@@ -200,25 +150,6 @@ def linked_edges(gray_equalized):
     dilated_edges = cv2.dilate(edges, kernel, iterations=1)  # Dilate to join edges
     linked_edges = cv2.erode(dilated_edges, kernel, iterations=1)  # Erode to reduce noise
     return linked_edges
-
-
-def gamma_correction(image, gamma=0.5):
-    inv_gamma = 1.0 / gamma
-    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
-    return cv2.LUT(image, table)
-
-def preprocess_image(image):
-    """
-    Preprocesses the input image to handle lighting and contrast.
-    """
-    # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Histogram equalization or CLAHE for better contrast handling
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-    processed = clahe.apply(gray)
-    
-    return processed
 
 def detect_target(image):
     """
@@ -329,10 +260,7 @@ def remove_background(image):
 
 
 if __name__ == "__main__":
-    # Load the input image
-    #image_path = './HinhAnh/DaiBan1/BiaSo4-1-10.jpg'  # Replace with the path to your image
-    #image = cv2.imread(image_path)
-    cam = camera.Camera(1, "BiaTest", 1)
+    cam = camera.Camera(1, "BiaSo7", 2)
     image = cam.capture_image(200)
 
     # Step 1: Detect the target (e.g., shooting target)
@@ -359,18 +287,3 @@ if __name__ == "__main__":
         cv2.destroyAllWindows()
     else:
         print("Target not detected.")
-
-    
-    image = cv2.imread('./HinhAnh/DaiBan1/BiaSo4-1-9.jpg')
-
-    # Process image
-    processed_image, clahe_image, edges_image, thresh_image = process_image(image)
-
-    # Show results
-    cv2.imshow("original", image)
-    cv2.imshow("Processed Image", processed_image)
-    cv2.imshow("CLAHE Image", clahe_image)
-    cv2.imshow("Edges Image", edges_image)
-    cv2.imshow("Thresholded Image", thresh_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()

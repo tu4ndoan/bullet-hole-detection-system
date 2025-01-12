@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from tkinter import ttk
 import camera
 
-# detect bullet hole params - Bia So 4 - with basic setup cọc mắc màn TODO: define set up voi tripod
 b_debug = False # if True, show debug images, edge, thresh, matches, remove bg, draw debug ellipses
 thresh_value = 50
 
@@ -38,18 +37,17 @@ def load_target_params(target):
     global thresh_value, min_h_w, max_h_w, min_bullet_hole_area, max_bullet_hole_area, min_hole_circularity, min_hole_ratio, max_hole_ratio, hole_to_hole_distance
     global min_ratio, max_ratio, min_ellipse_area, max_ellipse_area, min_angle, max_angle
     if target == "BiaSo4":
-        
         # bullet detection params
-        thresh_value = 50
+        thresh_value = 100
 
-        min_h_w = 5 #14
-        max_h_w = 25 #20
+        min_h_w = 2 #14
+        max_h_w = 30 #20
 
-        min_bullet_hole_area = 100 #139
-        max_bullet_hole_area = 200 #201
+        min_bullet_hole_area = 10 #139
+        max_bullet_hole_area = 100 #201
         min_hole_circularity = 0.3 # 0.41
         min_hole_ratio = 0.5 # 0.9
-        max_hole_ratio = 1.5 # 1.21
+        max_hole_ratio = 1.9 # 1.21
         hole_to_hole_distance = 50 # deprecated
 
         # ellipse detection params
@@ -66,14 +64,14 @@ def load_target_params(target):
         # bullet detection params
         thresh_value = 50
 
-        min_h_w = 5 #8
-        max_h_w = 25 #15
+        min_h_w = 1 #8
+        max_h_w = 15 #15
 
-        min_bullet_hole_area = 25 #35
-        max_bullet_hole_area = 110 #102
-        min_hole_circularity = 0.3 # 0.59
+        min_bullet_hole_area = 10 #35
+        max_bullet_hole_area = 50 #102
+        min_hole_circularity = 0.1 # 0.59
         min_hole_ratio = 0.5 # 0.9
-        max_hole_ratio = 1.5 # 1.36
+        max_hole_ratio = 2 # 1.36
         hole_to_hole_distance = 50 # deprecated
 
         # ellipse detection params
@@ -85,84 +83,6 @@ def load_target_params(target):
 
         min_angle = 0
         max_angle = 360
-
-def update_variables():
-    global blur_value, adaptive_thresh_value, binary_thresh_value, edge_lower_value, edge_higher_value
-    
-    blur_value = blur_slider.get()
-    adaptive_thresh_value = adaptive_thresh_slider.get()
-    binary_thresh_value = binary_thresh_slider.get()
-    edge_lower_value = edge_lower_slider.get()
-    edge_higher_value = edge_higher_slider.get()
-    
-    # Update the result label to display the updated values
-    result_label.config(text=f"Updated Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                            f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
-
-# Create a new Toplevel window to edit variables
-def open_variable_editor():
-    global blur_slider, adaptive_thresh_slider, binary_thresh_slider, edge_lower_slider, edge_higher_slider, result_label
-    
-    # Create a new Toplevel window
-    top = tk.Toplevel()
-    top.title("Global Variables Editor")
-    
-    # Create a canvas widget
-    canvas = tk.Canvas(top)
-    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    # Create a scrollbar widget
-    scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
-    scrollbar.pack(side=tk.RIGHT, fill="y")
-
-    # Configure the canvas to work with the scrollbar
-    canvas.configure(yscrollcommand=scrollbar.set)
-    
-    # Create a frame inside the canvas to contain all widgets
-    canvas_frame = ttk.Frame(canvas)
-    canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
-
-    # Add all the sliders (trackbars) inside this frame
-    ttk.Label(canvas_frame, text="Blur Value:").pack(pady=5)
-    blur_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
-    blur_slider.set(blur_value)
-    blur_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Adaptive Threshold Value:").pack(pady=5)
-    adaptive_thresh_slider = tk.Scale(canvas_frame, from_=0, to=20, orient="horizontal")
-    adaptive_thresh_slider.set(adaptive_thresh_value)
-    adaptive_thresh_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Binary Threshold Value:").pack(pady=5)
-    binary_thresh_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    binary_thresh_slider.set(binary_thresh_value)
-    binary_thresh_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Edge Lower Value:").pack(pady=5)
-    edge_lower_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    edge_lower_slider.set(edge_lower_value)
-    edge_lower_slider.pack(pady=5)
-
-    ttk.Label(canvas_frame, text="Edge Higher Value:").pack(pady=5)
-    edge_higher_slider = tk.Scale(canvas_frame, from_=0, to=255, orient="horizontal")
-    edge_higher_slider.set(edge_higher_value)
-    edge_higher_slider.pack(pady=5)
-
-    # Apply Button
-    apply_button = ttk.Button(canvas_frame, text="Apply Variables", command=update_variables)
-    apply_button.pack(pady=20)
-
-    # Label to show updated values
-    result_label = ttk.Label(canvas_frame, text=f"Current Values:\nBlur: {blur_value}\nAdaptive Threshold: {adaptive_thresh_value}\nBinary Threshold: {binary_thresh_value}\n"
-                                               f"Edge Lower: {edge_lower_value}\nEdge Higher: {edge_higher_value}\n\n")
-    result_label.pack(pady=10)
-
-    # Update scroll region whenever the content changes
-    canvas_frame.update_idletasks()
-    canvas.config(scrollregion=canvas.bbox("all"))
-
-    top.geometry("350x600")
-
 
 # check functions
 def is_hole_inside_ellipse(x, y, h, k, a, b, angle):
@@ -250,7 +170,6 @@ def get_bullet_holes(lane, turn, target):
         if result["name"] == f"{lane}-{turn}-{target}":
             return result["holes"]
 
-
 def get_center_ellipse_parameters(image, target):
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -321,11 +240,8 @@ def get_center_ellipse_parameters(image, target):
         angle = center_ellipse[2]   # Angle
         a = a // 4  # Scale down major axis for your use case
         b = b // 4  # Scale down minor axis for your use case
-    cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0,0, 255), 2)  
+    #cv2.ellipse(image, (int(h), int(k)), (int(a), int(b)), angle, 0, 360, (0,0, 255), 2)  
     return int(a), int(b), int(h), int(k), int(angle)
-
-
-
 
 # draw
 def draw_debug_elipse(image, a, b, h, k, angle, target):
@@ -420,25 +336,28 @@ def compare_and_detect(lane, turn, target):
     try:
         image_prev_turn = image_processing.load_image(lane, turn-1, target)
         image_curr_turn = image_processing.load_image(lane, turn, target)
-        processed_prev,_,_,_ = image_processing.process_image(image_prev_turn)# process xong nhan them 2 lo, trong do co 1 lo sai?
-        processed_curr,_,_,_ = image_processing.process_image(image_curr_turn)
-        p_gamma = image_processing.gamma_correction(image_prev_turn)
-        c_gamma = image_processing.gamma_correction(image_curr_turn)
-        #z_prev = image_processing.remove_background(processed_prev)
-        #z_curr = image_processing.remove_background(processed_curr)
-        gray_prev = image_processing.preprocess_image(processed_prev)
-        gray_curr = image_processing.preprocess_image(processed_curr) # giảm ảnh hưởng của nắng
+
+        #image_prev_turn = image_processing.process_image(image_prev_turn)
+        #image_curr_turn = image_processing.process_image(image_curr_turn)
+
+        gray_prev = image_processing.preprocess_image(image_prev_turn)
+        gray_curr = image_processing.preprocess_image(image_curr_turn)
+
+        gray_prev = cv2.fastNlMeansDenoising(gray_prev, None, 15, 7, 21)
+        gray_curr = cv2.fastNlMeansDenoising(gray_curr, None, 15, 7, 21)
 
     except Exception as e:
         print(e)
         return None, None
     
     # Step 1: Feature detection and matching (ORB in this case)
-    orb = cv2.ORB_create()
+    orb = cv2.ORB_create(nfeatures=1000)
+    
 
     # Detect keypoints and descriptors
     kp1, des1 = orb.detectAndCompute(gray_prev, None)
     kp2, des2 = orb.detectAndCompute(gray_curr, None)
+    
 
     # Use BFMatcher to find the best matches between the descriptors
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
@@ -470,6 +389,7 @@ def compare_and_detect(lane, turn, target):
         print(e)
         return None, None
     # Step 6: Calculate the absolute difference between the images
+    
     diff_image = cv2.absdiff(aligned_before, gray_curr)
 
     # Step 7: Threshold the difference image to highlight changes
@@ -480,6 +400,24 @@ def compare_and_detect(lane, turn, target):
     # Step 9: Draw bounding boxes and annotate with numbers
     valid_holes = []
     for i, contour in enumerate(contours):
+        if not len(contour) >= 5:
+            continue
+        ellipse = cv2.fitEllipse(contour)
+        (a, b) = ellipse[1]  # Major and minor axes
+        # Check if any parameter is NaN or invalid
+        if np.isnan(a) or np.isnan(b):
+            continue
+        # Calculate the area of the ellipse
+        area = np.pi * a * b
+
+        if area == 0 or a == 0 or b == 0:
+            continue
+
+        # Calculate aspect ratio
+        aspect_ratio1 = max(a, b) / min(a, b)
+
+        if aspect_ratio1 > 2:
+            continue
         x, y, w, h = cv2.boundingRect(contour)
         # filtering holes
         if is_hole_already_exist(lane, target, x,y,w,h):
@@ -507,6 +445,7 @@ def compare_and_detect(lane, turn, target):
         print(x,y,w,h, contour_area, aspect_ratio, circularity)
         # pass all the check? then append to valid_holes
         valid_holes.append((x, y, w, h))
+        cv2.putText(image_curr_turn, str(f"{aspect_ratio1}"), (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     # construct result
     total_score, result_text = calculate_score(valid_holes, lane, turn, target)
     result = {"name": f"{lane}-{turn}-{target}",
@@ -517,19 +456,19 @@ def compare_and_detect(lane, turn, target):
             "total_score": total_score,
             "result_text": result_text
             }
-                    
+
     results.append(result)
-    
+
     # draw bounding boxes and annotate with numbers
     for (x,y,w,h) in valid_holes:
         cv2.rectangle(image_curr_turn, (x, y), (x + w, y + h), (0, 255, 0), 1)
         text = f"Loat {turn}"
-        cv2.putText(image_curr_turn, text, (x + 5, y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        
         
 
     image_processing.save_image(image_curr_turn, lane, turn, target)
     # Step 10: Show the images with bounding boxes and numbers (debug only)
-    if False:
+    if b_debug: # if package change to b_debug
         # Show the matched keypoints
         image_matches = cv2.drawMatches(gray_prev, kp1, gray_curr, kp2, good_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
         plt.imshow(image_matches)
@@ -551,11 +490,12 @@ def compare_and_detect(lane, turn, target):
 
 if __name__=="__main__":
     b_debug = True
-    #cam = camera.Camera(1,"BiaSo7", 1)
-    #img = cv2.imread("./HinhAnh/DaiBan1/BiaSo4Test-1-1.jpg")
+    cam = camera.Camera(1,"BiaSo4", 1)
+    cam2 = camera.Camera(1,"BiaSo7", 2)
     
-    #img = cam.capture_image(5)
-    #img2 = cam.capture_image(9)
-    #save_image(img,1,10,"BiaSo4")
-    compare_and_detect(1, 6, "BiaSo4")
-    #get_center_ellipse_parameters(img)
+    #img = cam.capture_image(3)
+    #img2 = cam2.capture_image(3)
+
+    compare_and_detect(1, 1, "BiaSo4")
+    compare_and_detect(1, 1, "BiaSo7")
+
