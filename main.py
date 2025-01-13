@@ -17,10 +17,11 @@ root.geometry("800x600")
 notebook = ttk.Notebook(root)
 notebook.pack(fill="both", expand=True)
 label = ttk.Frame(notebook)
+lane_canvases = {}
 
 # Variables
 num_turn = 1
-max_camera = 10 # bài 1 mỗi dải bắn nhập 3 camera tương đương với 3 bia
+max_camera = 100
 # Boolean variable to store the state of the checkbox
 b_debug = tk.BooleanVar()
 b_debug.set(False)  # Set the default state of the checkbox
@@ -32,28 +33,39 @@ def get_num_lane():
 
 # Function to check if the camera is detected and update the GUI accordingly
 def check_camera_and_open_editor(max_camera):
-    
     for camera_id in range(1, max_camera):
-            if (camera_id in camera.camera_indice):
-                print("camera added")
+        if (camera_id in camera.camera_indice):
+            cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                print(f"Error: Camera {camera_id} đã mất kết nối, hãy kiểm tra lại")
+                camera.camera_indice.remove(camera_id)
+                camera.camera_objects = [camera for camera in camera.camera_objects if camera.get_camera_id() != camera_id]
+                print(f"Đã xóa camera {camera_id} khỏi danh sách")
             else:
-                cap = cv2.VideoCapture(camera_id)
+                print(f"Camera {camera_id} check OK")
+                cap.release()
+        else:
+            try:
+                cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
                 if cap.isOpened():
+                    print(f"camera {camera_id}: cap is opened, releasing cap")
                     cap.release()  # Close the camera after detection
+                    print("Opening camera editor")
                     camera.open_variable_editor(camera_id)
                     cv2.waitKey(0)
                 else:
-                    detection_label.config(text=f"Đã nhập {len(camera.camera_indice)} camera")            
+                    print(f"Đã nhận diện hết camera, tổng cộng {len(camera.camera_indice)} camera")
+                    detection_label.config(text=f"Đã nhập {len(camera.camera_indice)} camera")
+                    break
+            except Exception as e:
+                print(f"Error with camera index {camera_id}: {e}")
+                break
+                            
     
 def show_full_image(img, lane, turn):
     #image1 = image_processing.load_result(lane, turn, target)
     cv2.imshow(f"Loat {turn}, Be so {lane}", img)
     cv2.waitKey(0)
-    #cv2.destroyAllWindows()
-
-def get_notebook_tab(lane):
-    notebook_tab = notebook.tabs()[lane-1]
-    return notebook.nametowidget(notebook_tab)
 
 def get_result_for_lane(lane, turn):
     result = []
@@ -67,8 +79,11 @@ def add_result_to_frame(lane, turn):
     new_result = get_result_for_lane(lane, turn)
     canvas, content_frame, current_column = get_canvas_by_lane(lane)
     # Add the new images to the content_frame
-    current_column = 0
-    current_row = 0
+    current_column = 1
+    side_frame = tk.Frame(content_frame)
+    side_label = tk.Label(side_frame, text=f"Loạt {turn}")
+    side_label.pack()
+    side_frame.grid(row=turn-1, column=0, padx=10, pady=10)
     for image, text, _ in new_result:
         result_image_resized = cv2.resize(image, (200, 200))
         
@@ -104,17 +119,19 @@ def start_shooting():
         lane_dir = f"./HinhAnh/DaiBan{lane+1}"
         result_dir = f"./HinhAnh/KetQua/DaiBan{lane+1}"
         if not os.path.exists(lane_dir):
+            print(f"Creating directory {lane_dir}")
             os.makedirs(lane_dir)
         if not os.path.exists(result_dir):
+            print(f"Creating directory {result_dir}")
             os.makedirs(result_dir)
     # chụp tất cả các bia trước khi bắn để so sánh
     # call parallel capture
-    if not b_debug:
+    if not b_debug.get():
+        print("Bắt đầu bắn loạt 1, đang chụp ảnh toàn bộ bia trước khi bắn, các loạt bắn sau lưu ý không bấm lại nút Bắt đầu bắn")
         camera.parallel_capture(0)
 
     messagebox.showinfo("Thông báo", f"Bắt đầu bắn loạt {num_turn}")
 
-lane_canvases = {}
 def get_canvas_by_lane(lane):
     """
     Get the canvas for the given lane.
@@ -155,8 +172,6 @@ def add_shooting_lane():
     # Store the canvas in the dictionary with lane number as the key
     lane_canvases[lane_number] = (canvas, content_frame, 0)
 
-    # Show a message box confirming the addition of the new lane
-    messagebox.showinfo("Thông báo", f"Đã thêm 1 dải bắn, tổng cộng {get_num_lane()} dải bắn")
 
 def remove_shooting_lane():
     lane = get_current_tab()
@@ -168,8 +183,8 @@ def add_shooting_turn():
     """
     global num_turn
     num_turn += 1
-    
-    messagebox.showinfo("Thông báo", f"Đã thêm 1 Loạt bắn, tổng cộng {num_turn} loạt bắn")
+    turn_label.config(text=f"Loạt {num_turn}")
+    messagebox.showinfo("Thông báo", f"Bắt đầu bắn loạt {num_turn}")
 
 def shooting_turn_complete():
     """
@@ -178,20 +193,26 @@ def shooting_turn_complete():
     global num_turn
     # capture the target after each shooting turn
     if not b_debug.get():
+        print(f"Đang chụp ảnh báo bia loạt {num_turn}...")
         camera.parallel_capture(num_turn)
         cv2.waitKey(5000)
+        print(f"Đã chụp xong ảnh báo bia loạt {num_turn}")
     # bao bia
     for lane in range(1, get_num_lane()+1):
+        print(f"Đang xử lý kết quả loạt {num_turn} bệ số {lane}...")
         add_result_to_frame(lane, num_turn)
+        print(f"Đã xử lý xong kết quả loạt {num_turn} bệ số {lane}")
 
 def reset():
     """
     Reset all lanes and turns to their initial state.
     """
+    print("Đang reset loạt bắn và dải bắn, camera giữ nguyên")
     global num_turn
     num_turn = 0
     for tab in notebook.tabs():
         notebook.forget(tab)
+    print("Reset complete")
     messagebox.showinfo("Thông báo", "Reset xong")
 
 def get_current_tab():
@@ -199,7 +220,8 @@ def get_current_tab():
     return notebook.nametowidget(current_tab_id)
     
 def open_result_folder():
-    os.startfile("./HinhAnh/KetQua")
+    print(os.path.abspath("./HinhAnh/KetQua/"))
+    os.startfile(os.path.abspath("./HinhAnh/KetQua/"))
 
 def view_all_camera():
     camera.view_all_camera()
@@ -262,13 +284,19 @@ def view_result(turn):
             current_row += 1
         # Update the scrollable region of the canvas to include the new images
         total_score_frame = tk.Frame(content_frame)
-        score_label = tk.Label(total_score_frame, text=total_score)
+        if total_score < 45:
+            grade = "Không đạt"
+        elif 45 <= total_score <= 58:
+            grade = "Đạt"
+        elif 59 <= total_score <= 71:
+            grade = "Khá"
+        elif 72 <= total_score <= 90:
+            grade = "Giỏi"
+        score_label = tk.Label(total_score_frame, text=f"Tổng: {total_score} điểm - {grade}")
         score_label.pack()
         total_score_frame.grid(row=current_row, column=lane-1, padx=10, pady=10)
     content_frame.update_idletasks()  # Update content frame size
     res_can.config(scrollregion=res_can.bbox("all"))  # Update the scroll region
-
-
 
 def toggle_debug():
     if b_debug.get():
@@ -293,7 +321,7 @@ shooting_turn_complete_btn.pack(padx=5, side="left")
 edit_variables_btn = tk.Button(root, text="Mở thư mục Kết Quả", command=open_result_folder)
 edit_variables_btn.pack(padx=5, side="left")
 
-view_result_btn = tk.Button(root, text=f"Xem kết quả loạt {num_turn}", command=lambda: view_result(num_turn))
+view_result_btn = tk.Button(root, text=f"Thông báo kết quả loạt", command=lambda: view_result(num_turn))
 view_result_btn.pack(padx=5, side="left")
 
 add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(max_camera))# cho phép nhập max camera
@@ -305,11 +333,13 @@ check_camera_btn.pack(padx=5, side="left")
 detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera.camera_indice)} camera đã thêm")
 detection_label.pack(pady=5)
 
+turn_label = ttk.Label(root, text=f"Loạt {num_turn}")
+turn_label.pack(pady=5)
 
-# Create a checkbox widget
 checkbox = tk.Checkbutton(root, text="debug mode", variable=b_debug, command=toggle_debug)
-
-# Pack the checkbox onto the window
 checkbox.pack(padx=5, side="left")
+
+reset_btn = tk.Button(root, text="Reset", command=reset)
+reset_btn.pack(padx=5, side="left")
 
 root.mainloop()

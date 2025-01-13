@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 
-targets = ["BiaSo4", "BiaSo7"]
+targets = ["BiaSo4", "BiaSo7"] # if package, this list will be empty
 camera_objects = []
 camera_indice = []
 class Camera:
@@ -118,6 +118,7 @@ def create_camera_object(camera_id, lane, target, window):
     # Create a Camera object with the values entered
     camera_obj = Camera(lane, target, camera_id)
     if camera_obj not in camera_objects:
+        print("Camera object created successfully!")
         camera_objects.append(camera_obj)
         camera_indice.append(camera_id)
     if (target not in targets):
@@ -170,8 +171,7 @@ def view_all_camera():
     new_window = tk.Toplevel()
     new_window.title("Tất cả camera")
     new_window.geometry("400x300")
-    for camera in camera_objects:
-        camera_id = camera.get_camera_id()
+    for camera_id in camera_indice:
         print(camera_id)
         camera_btn = tk.Button(new_window, text=f"camera {camera_id}", command=lambda camera_id=camera_id: view_camera(camera_id))
         camera_btn.pack(pady=5)
