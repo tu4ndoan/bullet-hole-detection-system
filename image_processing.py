@@ -26,19 +26,25 @@ def save_image(image, lane, turn, target):
 
 # Preprocess the image to handle lighting variations (strong lighting, overexposure).
 def preprocess_image(image):
+    # test gamma
+    image = adjust_gamma(image, 0.8)
     # Convert to grayscale
+    print("Đang chuyển về grayscale")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Normalize the image to adjust for lighting conditions
     # Normalize pixel values to 0-255 range
+    print("Normalizing pixel values to 0-255 range to adjust for lighting conditions")
     gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
     
     # Apply histogram equalization for better contrast
     #gray = cv2.equalizeHist(gray)
+    print("Applying CLAHE equalization 3.0 - 8,8 for better contrast")
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     gray =  clahe.apply(gray)
-    gray = cv2.GaussianBlur(gray, (5,5), 0)
-
+    print("Applying Gaussian blur 3,3 - 0 to reduce noise")
+    gray = cv2.GaussianBlur(gray, (3,3), 0)
+    
     return gray
 
 def adjust_gamma(image, gamma):

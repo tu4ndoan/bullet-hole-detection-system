@@ -7,10 +7,11 @@ import camera
 import image_processing
 import cv2
 import detect_bullet_hole
+
 # https://viblo.asia/p/u-net-kien-truc-manh-me-cho-segmentation-1Je5Em905nL
 # Create main window
 root = tk.Tk()
-root.title("TIỂU ĐOÀN 1038 - PHẦN MỀM BÁO BIA TỰ ĐỘNG")
+root.title("TIỂU ĐOÀN 1038 - ỨNG DỤNG BÁO BIA TỰ ĐỘNG")
 root.geometry("800x600")
 
 # Create a Notebook widget to hold tabs, each shooting lane is 1 tab
@@ -34,13 +35,15 @@ def get_num_lane():
 # Function to check if the camera is detected and update the GUI accordingly
 def check_camera_and_open_editor(max_camera):
     for camera_id in range(1, max_camera):
-        if (camera_id in camera.camera_indice):
+        
+        if (camera_id in camera.cameras):
+            print(f"Checking camera {camera.cameras[camera_id].camera_id} - {camera.cameras[camera_id].target} - {camera.cameras[camera_id].lane}")
             cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
             if not cap.isOpened():
                 print(f"Error: Camera {camera_id} đã mất kết nối, hãy kiểm tra lại")
-                camera.camera_indice.remove(camera_id)
-                camera.camera_objects = [camera for camera in camera.camera_objects if camera.get_camera_id() != camera_id]
-                print(f"Đã xóa camera {camera_id} khỏi danh sách")
+                camera.cameras[camera_id].deactivate()
+                print(camera.cameras)
+
             else:
                 print(f"Camera {camera_id} check OK")
                 cap.release()
@@ -48,14 +51,14 @@ def check_camera_and_open_editor(max_camera):
             try:
                 cap = cv2.VideoCapture(camera_id, cv2.CAP_DSHOW)
                 if cap.isOpened():
-                    print(f"camera {camera_id}: cap is opened, releasing cap")
-                    cap.release()  # Close the camera after detection
+                    print(f"camera {camera_id}: cap is opened")
                     print("Opening camera editor")
                     camera.open_variable_editor(camera_id)
+                    cap.release()
                     cv2.waitKey(0)
                 else:
-                    print(f"Đã nhận diện hết camera, tổng cộng {len(camera.camera_indice)} camera")
-                    detection_label.config(text=f"Đã nhập {len(camera.camera_indice)} camera")
+                    print(f"Đã nhận diện hết camera, tổng cộng {len(camera.cameras)} camera")
+                    detection_label.config(text=f"Đã nhập {len(camera.cameras)} camera")
                     break
             except Exception as e:
                 print(f"Error with camera index {camera_id}: {e}")
@@ -70,9 +73,13 @@ def show_full_image(img, lane, turn):
 def get_result_for_lane(lane, turn):
     result = []
     for target in camera.targets:
-        result_image, result_text, total_score = detect_bullet_hole.compare_and_detect(lane, turn, target)
-        result.append((result_image, result_text, total_score))
-        print(f"loạt {turn} bệ số {lane}: {result_text}-{total_score}")
+        try:
+            result_image, result_text, total_score = detect_bullet_hole.compare_and_detect(lane, turn, target)
+
+            result.append((result_image, result_text, total_score))
+            print(f"loạt {turn} bệ số {lane}: {result_text}-{total_score}")
+        except Exception as e:
+            print(e)
     return result
 
 def add_result_to_frame(lane, turn):
@@ -210,6 +217,7 @@ def reset():
     print("Đang reset loạt bắn và dải bắn, camera giữ nguyên")
     global num_turn
     num_turn = 0
+    turn_label.config(text=f"Loạt {num_turn}")
     for tab in notebook.tabs():
         notebook.forget(tab)
     print("Reset complete")
@@ -260,7 +268,6 @@ def view_result(turn):
             # row 3 is total score of all targets of this lane, turn
             target_result = None
             for result in detect_bullet_hole.results:
-                print("for loop")
                 if result["name"] == f"{lane}-{turn}-{target}":
                     target_result = result
             total_score += target_result["total_score"] # total score (all targets) of this lane
@@ -292,6 +299,8 @@ def view_result(turn):
             grade = "Khá"
         elif 72 <= total_score <= 90:
             grade = "Giỏi"
+        else:
+            grade = ""
         score_label = tk.Label(total_score_frame, text=f"Tổng: {total_score} điểm - {grade}")
         score_label.pack()
         total_score_frame.grid(row=current_row, column=lane-1, padx=10, pady=10)
@@ -324,22 +333,24 @@ edit_variables_btn.pack(padx=5, side="left")
 view_result_btn = tk.Button(root, text=f"Thông báo kết quả loạt", command=lambda: view_result(num_turn))
 view_result_btn.pack(padx=5, side="left")
 
-add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(max_camera))# cho phép nhập max camera
+add_camera_btn = tk.Button(root, text="Thêm Camera", command=lambda: check_camera_and_open_editor(max_camera))
 add_camera_btn.pack(padx=5, side="left")
 
 check_camera_btn = tk.Button(root, text="Kiểm tra camera", command=view_all_camera)
 check_camera_btn.pack(padx=5, side="left")
 
-detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera.camera_indice)} camera đã thêm")
+reset_btn = tk.Button(root, text="Reset", command=reset)
+reset_btn.pack(padx=5, side="left")
+
+detection_label = ttk.Label(root, text=f"Tổng cộng {len(camera.cameras)} camera đã thêm")
 detection_label.pack(pady=5)
 
 turn_label = ttk.Label(root, text=f"Loạt {num_turn}")
 turn_label.pack(pady=5)
 
-checkbox = tk.Checkbutton(root, text="debug mode", variable=b_debug, command=toggle_debug)
-checkbox.pack(padx=5, side="left")
+#checkbox = tk.Checkbutton(root, text="debug mode", variable=b_debug, command=toggle_debug)
+#checkbox.pack(padx=5, side="left")
 
-reset_btn = tk.Button(root, text="Reset", command=reset)
-reset_btn.pack(padx=5, side="left")
+
 
 root.mainloop()
