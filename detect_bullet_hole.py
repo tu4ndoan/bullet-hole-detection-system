@@ -19,12 +19,12 @@ def load_target_params(target):
         thresh_value = 50
 
         min_h_w = 1 #14
-        max_h_w = 30 #20
+        max_h_w = 100 #20
 
-        min_bullet_hole_area = 20
-        max_bullet_hole_area = 100
-        min_hole_circularity = 0.4
-        min_hole_ratio = 1
+        min_bullet_hole_area = 1
+        max_bullet_hole_area = 1010
+        min_hole_circularity = 0.1
+        min_hole_ratio = 0
         max_hole_ratio = 2
         hole_to_hole_distance = 50
 
@@ -338,6 +338,10 @@ def compare_and_detect(lane, turn, target):
         print("Đang tải lên các hình ảnh loạt này...")
         image_curr_turn = image_processing.load_image(lane, turn, target)
         print("Đang xử lý hình ảnh...")
+        print("Đang xóa nền...")
+        image_curr_turn = image_processing.remove_background(image_curr_turn)
+        image_prev_turn = image_processing.remove_background(image_prev_turn)
+        print("Đang gray, ")
         gray_prev = image_processing.preprocess_image(image_prev_turn)
         gray_curr = image_processing.preprocess_image(image_curr_turn)
         print("Đang khử độ nhiễu của ảnh")
@@ -492,5 +496,5 @@ if __name__=="__main__":
     #img2 = cam2.capture_image(1)
 
     #compare_and_detect(1, 1, "BiaSo4")
-    compare_and_detect(1, 3, "BiaSo7")
+    compare_and_detect(1, 1, "BiaSo4")
 

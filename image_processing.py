@@ -3,6 +3,8 @@ import tkinter as tk
 import numpy as np
 import os
 import camera
+from rembg import remove
+from PIL import Image
 from tkinter import ttk
 
 
@@ -27,6 +29,7 @@ def save_image(image, lane, turn, target):
 # Preprocess the image to handle lighting variations (strong lighting, overexposure).
 def preprocess_image(image):
     # test gamma
+    print("Đang điều chỉnh gamma")
     image = adjust_gamma(image, 0.8)
     # Convert to grayscale
     print("Đang chuyển về grayscale")
@@ -233,35 +236,11 @@ def zoom_in(image, zoom_factor=1.5):
     zoomed_in = zoomed_image[y_start:y_start + height, x_start:x_start + width]
     
     return zoomed_in
-
+# 
 def remove_background(image):
-    """
-    Removes the background by detecting the target, zooming in, and applying a mask.
-    """
-    try:
-        cropped_target, target_masked, target_mask = detect_target(image)
-    except Exception as e:
-        print(e)
-        return None
-    
-    if cropped_target is not None:
-        # Zoom into the detected target region
-        zoomed_target = zoom_in(cropped_target, zoom_factor=1.5)
-        
-        # Resize target mask to match the zoomed target
-        target_mask_resized = cv2.resize(target_mask, (zoomed_target.shape[1], zoomed_target.shape[0]), interpolation=cv2.INTER_NEAREST)
-        target_mask_inverted = cv2.bitwise_not(target_mask_resized)
-        
-        # Background removal by applying the mask
-        background_removed = cv2.bitwise_and(image, target_mask_resized)
-        
-        # Optionally, refine the mask using morphological operations or smoothing
-        kernel = np.ones((5, 5), np.uint8)
-        smoothed_mask = cv2.morphologyEx(target_mask_resized, cv2.MORPH_CLOSE, kernel)
-        
-        background_removed = cv2.bitwise_and(image, smoothed_mask)
-    
-    return background_removed
+    background_removed = remove(image)
+
+    return background_removed.copy()
 
 
 
